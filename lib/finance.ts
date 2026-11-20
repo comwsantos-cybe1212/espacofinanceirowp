@@ -200,7 +200,8 @@ export type RuleOfThree = {
   dividido: boolean; // a divisão deste mês já foi feita?
   saldoAtual: number;
   reservado: number; // valores individuais de meses anteriores (já estão no saldo e não entram de novo)
-  basePrevia: number; // saldo atual − reservado: o que seria dividido agora
+  basePrevia: number; // saldo previsto do mês − reservado: o que seria dividido agora
+  saldoPrevisto: number;
   base: number; // saldo dividido neste mês (fixo depois de feita a divisão)
   terco: number; // valor de cada parte ativa
   partes: number; // 3, ou 2 quando "não guardar"/"não adiantar" neste mês
@@ -242,9 +243,11 @@ export function individualBalance(d: AppData, profileId: number, upTo: string) {
 }
 
 /**
- * Divisão do mês: o saldo atual (menos os valores individuais que sobraram de meses anteriores)
- * é dividido em partes iguais — valor individual (÷2, um para cada), adiantar contas e guardar.
- * Depois de feita, a divisão fica fixa até o fim do mês.
+ * Divisão do mês: o SALDO PREVISTO do mês (saldo atual + o que falta receber − o que falta pagar),
+ * menos os valores individuais que sobraram de meses anteriores, é dividido em partes iguais —
+ * valor individual (÷2, um para cada), adiantar contas e guardar. Atualiza sozinha a cada lançamento;
+ * o valor de cada mês fica salvo para os valores individuais acumularem.
+ * Gastos da própria divisão (valor individual, contas adiantadas, caixinha) não diminuem a base.
  */
 export function ruleOfThree(d: AppData): RuleOfThree {
   const s = summary(d);
@@ -253,9 +256,14 @@ export function ruleOfThree(d: AppData): RuleOfThree {
 
   const anteriores = d.profiles.map((p) => ({ p, anterior: individualBalance(d, p.id, prev) }));
   const reservado = anteriores.reduce((a, x) => a + Math.max(0, x.anterior), 0);
-  const basePrevia = Math.max(0, s.saldoAtual - reservado);
-  const dividido = d.divisoes[cur] !== undefined;
-  const base = dividido ? d.divisoes[cur] : basePrevia;
+  // O que a própria divisão já usou neste mês volta para a base (senão seria descontado duas vezes)
+  const adiantadoMes = d.txs.filter((t) => t.kind === 'despesa' && t.paid && t.paid_at && monthOf(t.paid_at) === cur && t.month > cur);
+  const guardadoMes = d.savings.filter((m) => monthOf(m.date) === cur).reduce((a, m) => a + m.amount, 0);
+  const individualMes = sum(d.txs.filter((t) => t.kind === 'despesa' && t.category === INDIVIDUAL_CATEGORY && t.month === cur));
+  const basePrevia = Math.max(0, s.saldoPrevisto + individualMes + sum(adiantadoMes) + guardadoMes - reservado);
+  // Automática: a divisão do mês sempre acompanha a previsão atual
+  const dividido = true;
+  const base = basePrevia;
 
   const semGuardar = flagOn(d, 'sem_guardar', cur);
   const semAdiantar = flagOn(d, 'sem_adiantar', cur);
@@ -271,8 +279,6 @@ export function ruleOfThree(d: AppData): RuleOfThree {
     return { profile: p, anterior, cotaMes, gastoMes, atual: anterior + (dividido ? cotaMes : 0) - gastoMes };
   });
 
-  const adiantadoMes = d.txs.filter((t) => t.kind === 'despesa' && t.paid && t.paid_at && monthOf(t.paid_at) === cur && t.month > cur);
-  const guardadoMes = d.savings.filter((m) => monthOf(m.date) === cur).reduce((a, m) => a + m.amount, 0);
   const usadoAdiantar = sum(adiantadoMes);
   const restaAdiantar = cotaAdiantar - usadoAdiantar;
 
@@ -288,7 +294,7 @@ export function ruleOfThree(d: AppData): RuleOfThree {
   }
 
   return {
-    dividido, saldoAtual: s.saldoAtual, reservado, basePrevia, base, terco, partes, semGuardar, semAdiantar,
+    dividido, saldoAtual: s.saldoAtual, saldoPrevisto: s.saldoPrevisto, reservado, basePrevia, base, terco, partes, semGuardar, semAdiantar,
     futuras: [...futuras].sort((a, b) => a.due_date.localeCompare(b.due_date) || a.description.localeCompare(b.description)),
     individuais,
     adiantar: { cota: cotaAdiantar, usado: usadoAdiantar, resta: restaAdiantar, sugestoes },

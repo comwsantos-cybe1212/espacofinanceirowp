@@ -1,9 +1,25 @@
 import 'server-only';
 import { db } from './db';
-import { todayBR } from './dates';
+import { monthOf, todayBR } from './dates';
 import type { AppData, Goal, Profile, SavingMove, Tx } from './types';
+import { ruleOfThree } from './finance';
 
 export async function loadData(): Promise<AppData> {
+  const d = await readData();
+  // Divisão automática: guarda o valor do mês atual (para os valores individuais acumularem nos meses seguintes)
+  const mes = monthOf(d.today);
+  const base = ruleOfThree(d).basePrevia;
+  if (d.divisoes[mes] !== base) {
+    const sql = await db();
+    await sql`insert into settings (key, value) values (${`divisao:${mes}`}, ${String(base)})
+              on conflict (key) do update set value = excluded.value`;
+    d.divisoes[mes] = base;
+    d.settings[`divisao:${mes}`] = String(base);
+  }
+  return d;
+}
+
+async function readData(): Promise<AppData> {
   const sql = await db();
   const [profiles, txs, savings, settings, goals] = await Promise.all([
     sql<Profile[]>`select id, name, color, photo from profiles order by id`,

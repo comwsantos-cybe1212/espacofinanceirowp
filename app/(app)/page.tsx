@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { makeDivision, setRuleFlag } from '@/app/actions';
+import { setRuleFlag } from '@/app/actions';
 import ActionButton from '@/components/ActionButton';
 import Avatar from '@/components/Avatar';
 import Fold from '@/components/Fold';
@@ -105,30 +105,16 @@ export default async function Inicio() {
         right={<span className="muted small" style={{ display: 'inline-flex', alignItems: 'center' }}>
           {rule.base > 0 && <><strong className="pos">{brl(rule.base)}</strong>&nbsp;{partes} =&nbsp;<strong>{brl(rule.terco)}</strong></>}
           <InfoTip inline text={<>
-            {rule.dividido ? <>Divisão de {monthLabel(s.cur, true).toLowerCase()}: </> : <>Prévia com o saldo de hoje: </>}
-            {rule.reservado > 0 && !rule.dividido && <>saldo atual <strong>{brl(rule.saldoAtual)}</strong> − <strong>{brl(rule.reservado)}</strong> dos valores individuais que sobraram = </>}
+            A divisão usa o <strong>saldo previsto do mês</strong>: o que vocês terão depois de receber tudo que falta e pagar todas as contas do mês (incluindo a fatura do cartão). Assim dá para dividir no começo do mês, antes de todos os salários entrarem.
+            {' '}Ela se atualiza sozinha a cada lançamento. Agora: saldo previsto <strong>{brl(rule.saldoPrevisto)}</strong>
+            {rule.reservado > 0 && <> menos <strong>{brl(rule.reservado)}</strong> dos valores individuais que sobraram</>} = 
             <strong>{brl(rule.base)}</strong> ÷ {rule.partes} = <strong>{brl(rule.terco)}</strong> por parte
             {rule.partes > 1 && <> ({['valor individual', !rule.semAdiantar && 'adiantar contas', !rule.semGuardar && 'guardar'].filter(Boolean).join(', ')})</>}.
             {' '}Valor individual ÷ 2 = <strong>{brl(porPessoa)}</strong> para cada um.
-            {s.aPagar + s.totalDividas > 0 && <> Lembrete: ainda faltam pagar <strong>{brl(s.aPagar + s.totalDividas)}</strong> este mês.</>}
+            {' '}Gastos dos valores individuais, contas adiantadas e o que vai para a caixinha não diminuem a divisão.
           </>} />
         </span>}>
         <div className="stack" style={{ gap: 12 }}>
-          {!rule.dividido ? (
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-              <ActionButton action={makeDivision} className="btn btn-primary"
-                confirm={`Fazer a divisão de ${monthLabel(s.cur, true).toLowerCase()} com ${brl(rule.base)}? O valor fica fixo até o fim do mês e cada um recebe ${brl(porPessoa)} no valor individual.`}>
-                Fazer a divisão deste mês
-              </ActionButton>
-              <InfoTip inline align="left" text="Faça depois que o salário entrar. O saldo de hoje é dividido e o valor fica fixo até o fim do mês, mesmo que vocês gastem depois." />
-            </div>
-          ) : (
-            <ActionButton action={makeDivision} className="btn btn-sm btn-ghost link-btn"
-              confirm={`Refazer a divisão com o saldo de agora (${brl(rule.basePrevia)})?`}>
-              Refazer a divisão com o saldo de agora
-            </ActionButton>
-          )}
-
           {(
           <div className="grid grid-3">
             <div className="third">
