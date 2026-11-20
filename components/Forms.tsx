@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useFormState, useFormStatus } from 'react-dom';
-import { moveSavings, updateOpeningBalance, updateProfile, type ActionResult } from '@/app/actions';
+import { clearData, moveSavings, updateOpeningBalance, updateProfile, type ActionResult } from '@/app/actions';
 import type { Profile } from '@/lib/types';
 import Avatar from './Avatar';
 
@@ -112,6 +112,27 @@ export function QuickSave({ cents }: { cents: number }) {
       <input type="hidden" name="note" value="Regra de 3" />
       <Submit className="btn btn-primary btn-sm">Guardar R$ {value}</Submit>
       {state?.error && <p className="error" style={{ margin: '6px 0 0' }}>{state.error}</p>}
+    </form>
+  );
+}
+
+/** Recomeçar: apagar despesas, receitas, economia e/ou saldo inicial */
+export function ClearDataForm() {
+  const [state, action] = useFormState<ActionResult | null, FormData>(clearData, null);
+  const ref = useRef<HTMLFormElement>(null);
+  useEffect(() => { if (state?.ok) ref.current?.reset(); }, [state]);
+  return (
+    <form ref={ref} action={action} className="stack" style={{ gap: 10 }}
+      onSubmit={(e) => { if (!window.confirm('Apagar definitivamente os dados marcados? Isso não pode ser desfeito.')) e.preventDefault(); }}>
+      <label className="check"><input type="checkbox" name="despesas" /> Todas as despesas (inclui cartão e parcelamentos)</label>
+      <label className="check"><input type="checkbox" name="receitas" /> Todas as receitas</label>
+      <label className="check"><input type="checkbox" name="economia" /> Economia guardada</label>
+      <label className="check"><input type="checkbox" name="saldo" /> Saldo inicial</label>
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+        <Submit className="btn btn-danger">Apagar selecionados</Submit>
+        {state?.ok && <span className="pos small">Apagado ✓</span>}
+        {state?.error && <span className="error">{state.error}</span>}
+      </div>
     </form>
   );
 }

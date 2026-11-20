@@ -32,13 +32,12 @@ export async function createTransaction(_: ActionResult | null, f: FormData): Pr
   const description = str(f, 'description').slice(0, 120);
   const amount = parseBRL(str(f, 'amount'));
   const date = str(f, 'date');
-  const profileId = Number(str(f, 'profile_id')) || null;
+  const profileId = Number(str(f, 'profile_id')) || null; // vazio/0 = "Nós"
   const paidNow = f.get('paid') === 'on';
 
   if (!description) return { ok: false, error: 'Dê um nome ao lançamento.' };
   if (!Number.isFinite(amount) || amount <= 0) return { ok: false, error: 'Informe um valor válido.' };
   if (!isValidDate(date)) return { ok: false, error: 'Informe uma data válida.' };
-  if (!profileId) return { ok: false, error: 'Escolha de quem é o lançamento.' };
 
   let subtype: string | null = null;
   let category: string;
@@ -119,20 +118,29 @@ export async function payInvoice(month: string) {
   refresh();
 }
 
-/** Exclui um lançamento; com `series`, exclui também os próximos da mesma série */
-export async function deleteTransaction(id: number, series: boolean) {
+/** Exclui um lançamento: só ele, ele e os próximos da série, ou a série inteira */
+export async function deleteTransaction(id: number, scope: 'um' | 'proximos' | 'todos') {
   await requireAuth();
   const sql = await db();
-  if (series) {
-    const [t] = await sql`select group_id, month from transactions where id = ${id}`;
-    if (t?.group_id) {
-      await sql`delete from transactions where group_id = ${t.group_id} and month >= ${t.month}`;
-      refresh();
-      return;
-    }
-  }
-  await sql`delete from transactions where id = ${id}`;
+  const [t] = await sql`select group_id, month from transactions where id = ${id}`;
+  if (t?.group_id && scope === 'todos') await sql`delete from transactions where group_id = ${t.group_id}`;
+  else if (t?.group_id && scope === 'proximos') await sql`delete from transactions where group_id = ${t.group_id} and month >= ${t.month}`;
+  else await sql`delete from transactions where id = ${id}`;
   refresh();
+}
+
+/** Recomeçar: apaga os tipos de dados escolhidos */
+export async function clearData(_: ActionResult | null, f: FormData): Promise<ActionResult> {
+  await requireAuth();
+  const what = { despesas: f.get('despesas') === 'on', receitas: f.get('receitas') === 'on', economia: f.get('economia') === 'on', saldo: f.get('saldo') === 'on' };
+  if (!Object.values(what).some(Boolean)) return { ok: false, error: 'Marque o que deseja apagar.' };
+  const sql = await db();
+  if (what.despesas) await sql`delete from transactions where kind = 'despesa'`;
+  if (what.receitas) await sql`delete from transactions where kind = 'receita'`;
+  if (what.economia) await sql`delete from savings`;
+  if (what.saldo) await sql`delete from settings where key = 'saldo_inicial'`;
+  refresh();
+  return { ok: true };
 }
 
 export async function moveSavings(_: ActionResult | null, f: FormData): Promise<ActionResult> {
@@ -161,6 +169,7 @@ export async function updateProfile(_: ActionResult | null, f: FormData): Promis
   const photo = str(f, 'photo');
   if (!name) return { ok: false, error: 'Informe o nome.' };
   if (photo && (!photo.startsWith('data:image/') || photo.length > 600_000)) return { ok: false, error: 'Foto inválida ou muito grande.' };
+  if (id < 1) return { ok: false, error: 'Perfil inválido.' };
   const sql = await db();
   if (photo) await sql`update profiles set name = ${name}, color = ${color}, photo = ${photo} where id = ${id}`;
   else await sql`update profiles set name = ${name}, color = ${color} where id = ${id}`;

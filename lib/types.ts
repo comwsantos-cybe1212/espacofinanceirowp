@@ -1,5 +1,8 @@
 export type Profile = { id: number; name: string; color: string; photo: string | null };
 
+/** Gastos/receitas do casal (sem perfil individual) */
+export const NOS: Profile = { id: 0, name: 'Nós', color: '#a77bff', photo: '/fotos/nos.jpg' };
+
 export type Tx = {
   id: number;
   profile_id: number | null;

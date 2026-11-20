@@ -83,7 +83,7 @@ export default async function Inicio() {
         {rule.base > 0 ? (
           <div className="grid grid-3">
             <div className="third">
-              <div className="third-head">🎉 Diversão <span className="third-value">{brl(rule.terco)}</span></div>
+              <div className="third-head"><span>🎉 Valor individual<div className="faint small" style={{ fontWeight: 400 }}>diversão, sem consultar o outro</div></span><span className="third-value">{brl(rule.terco)}</span></div>
               {rule.diversao.map(({ profile, cota, usado, resta }) => (
                 <div key={profile.id} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -176,7 +176,7 @@ export default async function Inicio() {
           {/* Comparação entre perfis */}
           <div className="panel">
             <div className="panel-head">
-              <h2 className="section-title">Quem gastou mais</h2>
+              <h2 className="section-title">Gastos de cada um</h2>
               <Link href="/perfis" className="link">Detalhes</Link>
             </div>
             <div className="stack" style={{ gap: 10 }}>

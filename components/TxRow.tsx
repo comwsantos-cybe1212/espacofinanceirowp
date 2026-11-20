@@ -1,18 +1,18 @@
-import { deleteTransaction, togglePaid } from '@/app/actions';
+import { togglePaid } from '@/app/actions';
 import { incomeLabel } from '@/lib/categories';
 import { dateLabel, monthLabel } from '@/lib/dates';
 import { txStatus } from '@/lib/finance';
 import { brl } from '@/lib/format';
 import type { Profile, Tx } from '@/lib/types';
+import DeleteButton from './DeleteButton';
 import ActionButton from './ActionButton';
 import Avatar from './Avatar';
-import { IconCheck, IconTrash, IconUndo } from './Icons';
+import { IconCheck, IconUndo } from './Icons';
 
 export default function TxRow({ t, profiles, today, actions = true }: { t: Tx; profiles: Profile[]; today: string; actions?: boolean }) {
   const profile = profiles.find((p) => p.id === t.profile_id);
   const status = txStatus(t, today);
   const income = t.kind === 'receita';
-  const series = !!t.group_id;
 
   return (
     <div className="row">
@@ -42,14 +42,7 @@ export default function TxRow({ t, profiles, today, actions = true }: { t: Tx; p
           >
             {t.paid ? <IconUndo /> : <IconCheck />}
           </ActionButton>
-          <ActionButton
-            action={deleteTransaction.bind(null, t.id, series)}
-            className="btn btn-sm icon-btn btn-danger"
-            title="Excluir"
-            confirm={series ? `Excluir "${t.description}" deste mês em diante (toda a série a partir daqui)?` : `Excluir "${t.description}"?`}
-          >
-            <IconTrash />
-          </ActionButton>
+          <DeleteButton id={t.id} description={t.description} series={!!t.group_id} parcelado={t.inst_total > 1} />
         </div>
       )}
     </div>

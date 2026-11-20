@@ -26,6 +26,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </Link>
           <nav className="top-nav"><Nav /></nav>
           <div className="header-tools">
+            <AddTransaction profiles={profiles} />
             <ThemeToggle />
             <Link href="/ajustes" className="btn btn-ghost icon-btn" title="Ajustes" aria-label="Ajustes"><IconGear /></Link>
           </div>
@@ -33,7 +34,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       </header>
       <main className="main">{children}</main>
       <nav className="bottom-nav"><Nav mobile /></nav>
-      <AddTransaction profiles={profiles} />
     </>
   );
 }

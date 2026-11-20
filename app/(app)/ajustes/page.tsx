@@ -1,6 +1,6 @@
 import { deleteSaving } from '@/app/actions';
 import ActionButton from '@/components/ActionButton';
-import { OpeningBalanceForm, SavingsForm } from '@/components/Forms';
+import { ClearDataForm, OpeningBalanceForm, SavingsForm } from '@/components/Forms';
 import { IconTrash } from '@/components/Icons';
 import ThemeToggle from '@/components/ThemeToggle';
 import { dateLabel } from '@/lib/dates';
@@ -44,6 +44,12 @@ export default async function Ajustes() {
             ))}
           </div>
         </div>
+      </div>
+
+      <div className="panel" style={{ marginTop: 14 }}>
+        <h2 className="section-title" style={{ marginBottom: 4 }}>Recomeçar</h2>
+        <p className="muted small" style={{ marginTop: 0 }}>Escolha o que apagar. Perfis e fotos são mantidos.</p>
+        <ClearDataForm />
       </div>
 
       <div className="panel" style={{ marginTop: 14, display: 'flex', gap: 10, flexWrap: 'wrap' }}>

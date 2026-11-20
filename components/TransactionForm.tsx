@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useFormState, useFormStatus } from 'react-dom';
+import { createPortal, useFormState, useFormStatus } from 'react-dom';
 import { createTransaction, type ActionResult } from '@/app/actions';
 import { EXPENSE_CATEGORIES, INCOME_SUBTYPES } from '@/lib/categories';
 import { addMonths, invoiceMonth, monthLabel, todayBR, CARD_CLOSE_DAY, CARD_DUE_DAY } from '@/lib/dates';
@@ -118,9 +118,10 @@ function Form({ profiles, onDone }: { profiles: Profile[]; onDone: () => void })
       <div className="field full">
         <span>De quem é?</span>
         <div className="segmented">
-          {profiles.map((p, i) => (
-            <label key={p.id}><input type="radio" name="profile_id" value={p.id} defaultChecked={i === 0} />{p.name}</label>
+          {profiles.map((p) => (
+            <label key={p.id}><input type="radio" name="profile_id" value={p.id} />{p.name}</label>
           ))}
+          <label><input type="radio" name="profile_id" value="0" defaultChecked />Nós</label>
         </div>
       </div>
 
@@ -155,14 +156,17 @@ export default function AddTransaction({ profiles }: { profiles: Profile[] }) {
 
   return (
     <>
-      <button className="btn btn-primary fab" onClick={() => { setKey((k) => k + 1); setOpen(true); }} aria-label="Novo lançamento" title="Novo lançamento">+</button>
-      {open && (
+      <button className="btn btn-primary add-btn" onClick={() => { setKey((k) => k + 1); setOpen(true); }} aria-label="Novo lançamento" title="Novo lançamento">
+        <span aria-hidden style={{ fontSize: 18, lineHeight: 1 }}>+</span><span className="add-label">Novo lançamento</span>
+      </button>
+      {open && createPortal(
         <div className="modal-back" onMouseDown={(e) => e.target === e.currentTarget && setOpen(false)}>
           <div className="modal" role="dialog" aria-modal="true" aria-label="Novo lançamento">
             <h3>Novo lançamento</h3>
             <Form key={key} profiles={profiles} onDone={() => setOpen(false)} />
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );

@@ -43,8 +43,12 @@ async function migrate(sql: postgres.Sql) {
   await sql`create table if not exists login_attempts (ip text primary key, fails int not null, last_at timestamptz not null)`;
   const [{ count }] = await sql`select count(*)::int as count from profiles`;
   if (count === 0) {
-    await sql`insert into profiles (name, color) values ('Pessoa 1', '#4de3ff'), ('Pessoa 2', '#ff6ec7')`;
+    await sql`insert into profiles (name, color, photo) values
+      ('Pedro', '#4de3ff', '/fotos/pedro.jpg'), ('Wesley', '#ff6ec7', '/fotos/wesley.jpg')`;
   }
+  // Bancos criados antes dos nomes definitivos
+  await sql`update profiles set name = 'Pedro', photo = coalesce(photo, '/fotos/pedro.jpg') where name = 'Pessoa 1'`;
+  await sql`update profiles set name = 'Wesley', photo = coalesce(photo, '/fotos/wesley.jpg') where name = 'Pessoa 2'`;
 }
 
 /** Retorna o cliente SQL garantindo que as tabelas existem (criadas no primeiro acesso) */

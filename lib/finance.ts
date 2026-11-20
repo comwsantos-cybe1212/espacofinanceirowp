@@ -1,6 +1,6 @@
 import { addMonths, invoiceDue, invoiceMonth, monthOf } from './dates';
 import { FUN_CATEGORY } from './categories';
-import type { AppData, Profile, Tx } from './types';
+import { NOS, type AppData, type Profile, type Tx } from './types';
 
 const sum = (list: Tx[]) => list.reduce((s, t) => s + t.amount, 0);
 
@@ -213,10 +213,12 @@ export function ruleOfThree(d: AppData): RuleOfThree {
   const base = s.saldoPrevisto + sum(diversaoMes) + sum(adiantadoMes) + guardadoMes;
   const terco = base > 0 ? Math.floor(base / 3) : 0;
 
+  // Valor individual: metade da parte de diversão para cada um; diversão de "nós" desconta metade de cada
   const n = Math.max(d.profiles.length, 1);
+  const nosDiversao = sum(diversaoMes.filter((t) => !t.profile_id));
   const diversao = d.profiles.map((p) => {
     const cota = Math.floor(terco / n);
-    const usado = sum(diversaoMes.filter((t) => t.profile_id === p.id));
+    const usado = sum(diversaoMes.filter((t) => t.profile_id === p.id)) + Math.round(nosDiversao / n);
     return { profile: p, cota, usado, resta: cota - usado };
   });
 
@@ -266,12 +268,12 @@ export function spendingByProfile(d: AppData, month: string) {
     })
     .sort((a, b) => Number(b.total) - Number(a.total));
 
-  const totals = d.profiles.map((p) => ({
+  const totals = [...d.profiles, NOS].map((p) => ({
     profile: p,
-    despesas: sum(out.filter((t) => t.profile_id === p.id)),
-    receitas: sum(d.txs.filter((t) => t.kind === 'receita' && t.month === month && t.profile_id === p.id)),
+    despesas: sum(out.filter((t) => (t.profile_id ?? 0) === p.id)),
+    receitas: sum(d.txs.filter((t) => t.kind === 'receita' && t.month === month && (t.profile_id ?? 0) === p.id)),
     topCategoria: (() => {
-      const mine = out.filter((t) => t.profile_id === p.id);
+      const mine = out.filter((t) => (t.profile_id ?? 0) === p.id);
       const m = new Map<string, number>();
       for (const t of mine) m.set(t.category, (m.get(t.category) ?? 0) + t.amount);
       return [...m.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
@@ -296,5 +298,22 @@ export function monthTotals(d: AppData, month: string) {
   return {
     receitas: sum(list.filter((t) => t.kind === 'receita')),
     despesas: sum(list.filter((t) => t.kind === 'despesa')),
+  };
+}
+
+/** Gastos individuais de uma pessoa no mês: fixos, variáveis e por categoria */
+export function personalSpending(d: AppData, profileId: number, month: string) {
+  const mine = d.txs.filter((t) => t.kind === 'despesa' && t.month === month && t.profile_id === profileId);
+  const fixos = mine.filter((t) => t.recurrence === 'fixa');
+  const variaveis = mine.filter((t) => t.recurrence === 'variavel');
+  const cats = new Map<string, number>();
+  for (const t of mine) cats.set(t.category, (cats.get(t.category) ?? 0) + t.amount);
+  return {
+    total: sum(mine),
+    fixos,
+    totalFixos: sum(fixos),
+    variaveis,
+    totalVariaveis: sum(variaveis),
+    categorias: [...cats.entries()].map(([category, amount]) => ({ category, amount })).sort((a, b) => b.amount - a.amount),
   };
 }
