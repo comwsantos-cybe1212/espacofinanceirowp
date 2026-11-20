@@ -190,7 +190,11 @@ export function projection(d: AppData, months = 12, seguirRegra = false): Projec
 
 export type RuleOfThree = {
   base: number;
-  terco: number;
+  terco: number; // valor de cada parte ativa
+  partes: number; // 3, ou 2 quando "não guardar"/"não adiantar" neste mês
+  semGuardar: boolean;
+  semAdiantar: boolean;
+  futuras: Tx[]; // todas as contas futuras que podem ser adiantadas
   diversao: { profile: Profile; cota: number; usado: number; resta: number }[];
   adiantar: { cota: number; usado: number; resta: number; sugestoes: Tx[] };
   guardar: { cota: number; usado: number; resta: number };
@@ -211,7 +215,11 @@ export function ruleOfThree(d: AppData): RuleOfThree {
   const guardadoMes = d.savings.filter((m) => monthOf(m.date) === cur).reduce((a, m) => a + m.amount, 0);
 
   const base = s.saldoPrevisto + sum(diversaoMes) + sum(adiantadoMes) + guardadoMes;
-  const terco = base > 0 ? Math.floor(base / 3) : 0;
+  // Partes ativas: valor individual sempre; guardar e adiantar podem ser desligados no mês
+  const partes = 1 + (d.semGuardar ? 0 : 1) + (d.semAdiantar ? 0 : 1);
+  const terco = base > 0 ? Math.floor(base / partes) : 0;
+  const cotaAdiantar = d.semAdiantar ? 0 : terco;
+  const cotaGuardar = d.semGuardar ? 0 : terco;
 
   // Valor individual: metade da parte de diversão para cada um; diversão de "nós" desconta metade de cada
   const n = Math.max(d.profiles.length, 1);
@@ -223,7 +231,7 @@ export function ruleOfThree(d: AppData): RuleOfThree {
   });
 
   const usadoAdiantar = sum(adiantadoMes);
-  const restaAdiantar = terco - usadoAdiantar;
+  const restaAdiantar = cotaAdiantar - usadoAdiantar;
 
   // Prioridade: últimas parcelas do cartão (encurta o parcelamento) e depois contas fixas mais próximas
   const futuras = d.txs.filter((t) => t.kind === 'despesa' && !t.paid && t.month > cur);
@@ -247,9 +255,13 @@ export function ruleOfThree(d: AppData): RuleOfThree {
   return {
     base,
     terco,
+    partes,
+    semGuardar: d.semGuardar,
+    semAdiantar: d.semAdiantar,
+    futuras: [...futuras].sort((a, b) => a.due_date.localeCompare(b.due_date) || a.description.localeCompare(b.description)),
     diversao,
-    adiantar: { cota: terco, usado: usadoAdiantar, resta: restaAdiantar, sugestoes },
-    guardar: { cota: terco, usado: guardadoMes, resta: terco - guardadoMes },
+    adiantar: { cota: cotaAdiantar, usado: usadoAdiantar, resta: restaAdiantar, sugestoes },
+    guardar: { cota: cotaGuardar, usado: guardadoMes, resta: cotaGuardar - guardadoMes },
     cortes,
   };
 }
@@ -348,4 +360,43 @@ export function goalsPlan(d: AppData) {
   const concluidas = d.goals.filter((g) => g.done);
   const porMesTotal = ativas.reduce((a, g) => a + g.porMes, 0);
   return { economia, usado, disponivel, ativas, concluidas, porMesTotal };
+}
+
+/* ---------------------------------------------------------------- Perfil individual */
+
+export type ProfileItem = { id: number; description: string; amount: number; shared: boolean; date: string; recurrence: string };
+export type ProfileSummary = {
+  profile: Profile;
+  month: string;
+  ganhos: number;
+  gastos: number;
+  fixos: number;
+  variaveis: number;
+  categorias: { category: string; amount: number; items: ProfileItem[] }[];
+};
+
+/**
+ * Resultado de uma pessoa no mês: o que é dela + metade de tudo que é de "Nós" (casa 50/50).
+ */
+export function profileSummary(d: AppData, profile: Profile, month: string): ProfileSummary {
+  const n = Math.max(d.profiles.length, 1);
+  const share = (t: Tx) => (t.profile_id === profile.id ? t.amount : !t.profile_id ? Math.round(t.amount / n) : 0);
+  const doMes = d.txs.filter((t) => t.month === month && (t.profile_id === profile.id || !t.profile_id));
+  const despesas = doMes.filter((t) => t.kind === 'despesa');
+  const cats = new Map<string, ProfileItem[]>();
+  for (const t of despesas) {
+    const item = { id: t.id, description: t.description, amount: share(t), shared: !t.profile_id, date: t.due_date, recurrence: t.recurrence };
+    cats.set(t.category, [...(cats.get(t.category) ?? []), item]);
+  }
+  return {
+    profile,
+    month,
+    ganhos: doMes.filter((t) => t.kind === 'receita').reduce((a, t) => a + share(t), 0),
+    gastos: despesas.reduce((a, t) => a + share(t), 0),
+    fixos: despesas.filter((t) => t.recurrence === 'fixa').reduce((a, t) => a + share(t), 0),
+    variaveis: despesas.filter((t) => t.recurrence === 'variavel').reduce((a, t) => a + share(t), 0),
+    categorias: [...cats.entries()]
+      .map(([category, items]) => ({ category, amount: items.reduce((a, i) => a + i.amount, 0), items: items.sort((a, b) => b.amount - a.amount) }))
+      .sort((a, b) => b.amount - a.amount),
+  };
 }

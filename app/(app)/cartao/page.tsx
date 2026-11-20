@@ -1,4 +1,4 @@
-import { payInvoice, payNow } from '@/app/actions';
+import { payInvoice } from '@/app/actions';
 import ActionButton from '@/components/ActionButton';
 import Avatar from '@/components/Avatar';
 import { IconCard, IconChevronDown, IconRepeat } from '@/components/Icons';
@@ -93,7 +93,7 @@ export default async function Cartao() {
                     <div className="small muted">{brl(p.total)} · {p.totalParcelas}x de {brl(p.parcela)} · {name(p.profile_id)}</div>
                   </div>
                 </div>
-                <span className="chip violet">Parcela {p.pagas + 1} de {p.totalParcelas}</span>
+                <span className="chip violet">Parcela {Math.min(p.pagas + 1, p.totalParcelas)} de {p.totalParcelas}</span>
               </div>
               <div className="bar"><div style={{ width: `${(p.pagas / p.totalParcelas) * 100}%` }} /></div>
               <div className="plan-foot"><span>{p.pagas} paga(s)</span><strong style={{ color: 'var(--text)' }}>faltam {p.faltam} · {brl(p.restante)}</strong></div>
@@ -101,12 +101,6 @@ export default async function Cartao() {
                 <span>Compra: {p.purchase_date ? `${dateLabel(p.purchase_date)}/${p.purchase_date.slice(0, 4)}` : '—'}</span>
                 <span>Última: {monthLabel(p.ultimoMes)}</span>
               </div>
-              {p.ultimaId && (
-                <ActionButton action={payNow.bind(null, p.ultimaId)} className="btn btn-sm" title="Adiantar a última parcela"
-                  confirm={`Adiantar a última parcela de "${p.description}" (${brl(p.parcela)})? Isso encurta o parcelamento em 1 mês.`}>
-                  Adiantar última parcela
-                </ActionButton>
-              )}
             </div>
           ))}
         </div>

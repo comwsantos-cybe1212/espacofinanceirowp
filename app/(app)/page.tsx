@@ -1,15 +1,16 @@
 import Link from 'next/link';
-import { payNow } from '@/app/actions';
+import { setRuleFlag } from '@/app/actions';
 import ActionButton from '@/components/ActionButton';
 import Avatar from '@/components/Avatar';
-import { QuickSave } from '@/components/Forms';
-import { IconArrowDown, IconArrowUp, IconCalendar, IconPiggy, IconTrendDown, IconWallet } from '@/components/Icons';
+import Fold from '@/components/Fold';
+import { IconArrowDown, IconArrowUp, IconCalendar, IconCard, IconPiggy, IconTrendDown, IconWallet } from '@/components/Icons';
+import { ProfileChips } from '@/components/ProfileView';
+import { AdvancePicker, SaveToBox } from '@/components/RuleControls';
 import TxRow from '@/components/TxRow';
-import { addMonths, dateLabel, monthLabel } from '@/lib/dates';
-import { currentInvoice, freeOfInstallmentsAfter, goalsPlan, monthTotals, projection, ruleOfThree, spendingByProfile, summary } from '@/lib/finance';
+import { dateLabel, monthLabel } from '@/lib/dates';
+import { currentInvoice, freeOfInstallmentsAfter, goalsPlan, profileSummary, projection, ruleOfThree, summary } from '@/lib/finance';
 import { brl } from '@/lib/format';
 import { loadData } from '@/lib/data';
-import { NOS } from '@/lib/types';
 
 function Tile({ label, value, hint, color, icon }: { label: string; value: number; hint?: React.ReactNode; color: string; icon: React.ReactNode }) {
   return (
@@ -26,6 +27,8 @@ function Meter({ used, total }: { used: number; total: number }) {
   return <div className={`bar ${used > total ? 'over' : ''}`}><div style={{ width: `${pct}%` }} /></div>;
 }
 
+const sum = (l: { amount: number }[]) => l.reduce((a, t) => a + t.amount, 0);
+
 export default async function Inicio() {
   const d = await loadData();
   const s = summary(d);
@@ -33,13 +36,15 @@ export default async function Inicio() {
   const fatura = currentInvoice(d);
   const livre = freeOfInstallmentsAfter(d);
   const proximos = projection(d, 4).slice(1);
-  const este = monthTotals(d, s.cur);
-  const anterior = monthTotals(d, addMonths(s.cur, -1));
-  const diff = anterior.despesas > 0 ? Math.round(((este.despesas - anterior.despesas) / anterior.despesas) * 100) : null;
-  const { totals } = spendingByProfile(d, s.cur);
-  const maxGasto = Math.max(1, ...totals.map((t) => t.despesas));
   const metas = goalsPlan(d);
-  const recebidoMes = d.txs.filter((t) => t.kind === 'receita' && t.paid && t.month === s.cur).reduce((a, t) => a + t.amount, 0);
+  const recebidoMes = sum(d.txs.filter((t) => t.kind === 'receita' && t.paid && t.month === s.cur));
+  const gastoMes = sum(d.txs.filter((t) => t.kind === 'despesa' && t.paid && t.month === s.cur));
+  const perfis = d.profiles.map((p) => ({
+    s: profileSummary(d, p, s.cur),
+    individual: rule.diversao.find((x) => x.profile.id === p.id) ?? null,
+  }));
+  const maxGasto = Math.max(1, ...perfis.map((p) => p.s.gastos));
+  const partes = rule.partes === 3 ? '⅓ para cada' : rule.partes === 2 ? 'metade para cada' : 'tudo para o valor individual';
 
   return (
     <div className="stack">
@@ -50,21 +55,17 @@ export default async function Inicio() {
         </div>
       </div>
 
-      <div className="chips">
-        {d.profiles.map((p) => (
-          <Link key={p.id} href="/perfis" className="profile-chip">
-            <Avatar profile={p} size={42} />
-            <div><strong>{p.name}</strong><span>ver gastos do mês</span></div>
-          </Link>
-        ))}
-      </div>
+      <ProfileChips items={perfis} />
 
-      <div className="grid grid-4 tiles">
+      {/* O básico: sempre visível */}
+      <div className="grid grid-5 tiles">
         <Tile label="Saldo atual" value={s.saldoAtual} color={s.saldoAtual < 0 ? 'var(--red)' : 'var(--green)'} icon={<IconWallet />} hint="Dinheiro na conta hoje" />
-        <Tile label="A receber" value={s.aReceber} color="var(--blue)" icon={<IconArrowUp />} hint={`${s.receber.length} lançamento(s) pendente(s)`} />
+        <Tile label="A receber" value={s.aReceber} color="var(--blue)" icon={<IconArrowUp />} hint={`${s.receber.length} pendente(s)`} />
         <Tile label="A pagar" value={s.aPagar + s.totalDividas} color="var(--red)" icon={<IconArrowDown />}
-          hint={s.totalDividas > 0 ? <span className="neg">inclui {brl(s.totalDividas)} atrasado</span> : `${s.pagar.length} conta(s) pendente(s)`} />
-        <Tile label="Economia" value={s.savingsTotal} color="var(--accent)" icon={<IconPiggy />} hint="Guardado, separado do saldo" />
+          hint={s.totalDividas > 0 ? <span className="neg">inclui {brl(s.totalDividas)} atrasado</span> : `${s.pagar.length} conta(s)`} />
+        <Tile label="Economia" value={s.savingsTotal} color="var(--accent)" icon={<IconPiggy />} hint="Na caixinha" />
+        <Tile label="Fatura do cartão" value={fatura?.open ?? 0} color="var(--pink)" icon={<IconCard />}
+          hint={fatura ? <>{monthLabel(fatura.month)} · vence {dateLabel(fatura.due)}{fatura.status === 'vencida' && <span className="neg"> · vencida</span>}</> : 'Sem fatura'} />
       </div>
 
       {s.dividas.length > 0 && (
@@ -76,13 +77,19 @@ export default async function Inicio() {
         </details>
       )}
 
-      {/* Divisão em 3 */}
-      <div className="panel">
-        <div className="panel-head">
-          <h2 className="section-title">Divisão da sobra</h2>
-          {rule.base > 0 && <span className="muted small">Sobra do mês: <strong className="pos">{brl(rule.base)}</strong> · ⅓ para cada</span>}
+      {/* Detalhes: só ao clicar na setinha */}
+      <Fold id="saldos" title="Recebidos, gastos e saldos do mês">
+        <div className="grid grid-5 tiles">
+          <Tile label="Recebido no mês" value={recebidoMes} color="var(--green)" icon={<IconArrowUp />} hint="Já entrou na conta" />
+          <Tile label="Gasto no mês" value={gastoMes} color="var(--red)" icon={<IconTrendDown />} hint="Já foi pago" />
+          <Tile label="Receitas previstas" value={s.aReceber} color="var(--blue)" icon={<IconArrowUp />} hint="Quanto ainda falta receber" />
+          <Tile label="Despesas previstas" value={s.aPagar + s.totalDividas} color="var(--amber)" icon={<IconArrowDown />} hint="Quanto ainda vai sair este mês" />
+          <Tile label="Saldo previsto" value={s.saldoPrevisto} color={s.saldoPrevisto < 0 ? 'var(--red)' : 'var(--green)'} icon={<IconCalendar />} hint="Quanto sobra depois de pagar tudo" />
         </div>
+      </Fold>
 
+      <Fold id="divisao" title="Divisão da sobra" defaultOpen
+        right={rule.base > 0 ? <span className="muted small">Sobra: <strong className="pos">{brl(rule.base)}</strong> · {partes}</span> : undefined}>
         {rule.base > 0 ? (
           <div className="grid grid-3">
             <div className="third">
@@ -92,7 +99,7 @@ export default async function Inicio() {
                 <div key={profile.id} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <Avatar profile={profile} size={22} />
-                    <span className="small" style={{ flex: 1, fontWeight: 700 }}>{profile.name}</span>
+                    <span className="small" style={{ flex: 1, fontWeight: 700 }}>{profile.name} · {brl(cota)}</span>
                     <span className={`small num ${resta < 0 ? 'neg' : 'muted'}`}>{resta < 0 ? `passou ${brl(-resta)}` : `resta ${brl(resta)}`}</span>
                   </div>
                   <Meter used={usado} total={cota} />
@@ -100,34 +107,46 @@ export default async function Inicio() {
               ))}
             </div>
 
-            <div className="third">
-              <div className="third-head"><span>📅 Adiantar contas</span><span className="third-value">{brl(rule.terco)}</span></div>
-              <Meter used={rule.adiantar.usado} total={rule.adiantar.cota} />
-              <span className="small muted">Resta {brl(Math.max(0, rule.adiantar.resta))}</span>
-              {rule.adiantar.sugestoes.length > 0 && (
-                <details className="more">
-                  <summary>O que adiantar</summary>
-                  <div className="list">
-                    {rule.adiantar.sugestoes.map((t) => (
-                      <div className="row" key={t.id}>
-                        <div className="row-main">
-                          <div className="row-title small">{t.description}{t.inst_total > 1 && <span className="faint"> {t.inst_no}/{t.inst_total}</span>}</div>
-                          <div className="row-meta">{monthLabel(t.month)} · {brl(t.amount)}</div>
-                        </div>
-                        <ActionButton action={payNow.bind(null, t.id)} confirm={`Pagar agora "${t.description}" (${brl(t.amount)})?`}>Pagar</ActionButton>
-                      </div>
-                    ))}
-                  </div>
-                </details>
+            <div className={`third ${rule.semAdiantar ? 'off' : ''}`}>
+              <div className="third-head"><span>📅 Adiantar contas</span><span className="third-value">{rule.semAdiantar ? '—' : brl(rule.terco)}</span></div>
+              {rule.semAdiantar ? (
+                <>
+                  <span className="small muted">Sem adiantar contas este mês. A sobra fica entre guardar e o valor individual.</span>
+                  <ActionButton action={setRuleFlag.bind(null, 'sem_adiantar', false)} className="btn btn-sm">Voltar a adiantar</ActionButton>
+                </>
+              ) : (
+                <>
+                  <Meter used={rule.adiantar.usado} total={rule.adiantar.cota} />
+                  <span className="small muted">Adiantado {brl(rule.adiantar.usado)} · resta {brl(Math.max(0, rule.adiantar.resta))}</span>
+                  <AdvancePicker suggestions={rule.adiantar.sugestoes} all={rule.futuras} />
+                  <ActionButton action={setRuleFlag.bind(null, 'sem_adiantar', true)} className="btn btn-sm btn-ghost link-btn"
+                    confirm="Não adiantar contas este mês? A sobra passa a ser dividida entre guardar e o valor individual.">
+                    Não adiantar contas este mês
+                  </ActionButton>
+                </>
               )}
             </div>
 
-            <div className="third">
-              <div className="third-head"><span>💰 Guardar</span><span className="third-value">{brl(rule.terco)}</span></div>
-              <Meter used={rule.guardar.usado} total={rule.guardar.cota} />
-              {rule.guardar.resta > 0
-                ? <><span className="small muted">Guardado: {brl(rule.guardar.usado)}</span><QuickSave cents={rule.guardar.resta} /></>
-                : <span className="small pos">Meta do mês guardada ✓</span>}
+            <div className={`third ${rule.semGuardar ? 'off' : ''}`}>
+              <div className="third-head"><span>💰 Guardar</span><span className="third-value">{rule.semGuardar ? '—' : brl(rule.terco)}</span></div>
+              {rule.semGuardar ? (
+                <>
+                  <span className="small muted">Sem economizar este mês. A sobra fica entre adiantar contas e o valor individual.</span>
+                  <ActionButton action={setRuleFlag.bind(null, 'sem_guardar', false)} className="btn btn-sm">Voltar a economizar</ActionButton>
+                </>
+              ) : (
+                <>
+                  <Meter used={rule.guardar.usado} total={rule.guardar.cota} />
+                  <span className="small muted">Na caixinha este mês: {brl(rule.guardar.usado)}</span>
+                  {rule.guardar.resta > 0
+                    ? <SaveToBox cents={rule.guardar.resta} saldo={s.saldoAtual} />
+                    : <span className="small pos" style={{ fontWeight: 700 }}>✓ Valor do mês guardado na caixinha</span>}
+                  <ActionButton action={setRuleFlag.bind(null, 'sem_guardar', true)} className="btn btn-sm btn-ghost link-btn"
+                    confirm="Não economizar este mês? A sobra passa a ser dividida entre adiantar contas e o valor individual.">
+                    Não economizar este mês
+                  </ActionButton>
+                </>
+              )}
             </div>
           </div>
         ) : (
@@ -136,102 +155,55 @@ export default async function Inicio() {
             {rule.cortes.length > 0 && <> Maior gasto variável: <strong>{rule.cortes[0].description}</strong> ({brl(rule.cortes[0].amount)}).</>}
           </p>
         )}
-      </div>
+      </Fold>
 
-      <details className="more">
-        <summary>Ver recebido, gasto e saldo previsto do mês</summary>
-        <div className="stack">
-          <div className="grid grid-3 tiles">
-            <Tile label="Recebido no mês" value={recebidoMes} color="var(--green)" icon={<IconArrowUp />} hint="Receitas já recebidas" />
-            <Tile label="Gasto no mês" value={este.despesas} color="var(--red)" icon={<IconTrendDown />}
-              hint={diff === null ? 'Tudo que saiu ou vai sair este mês' : `${diff > 0 ? '▲' : '▼'} ${Math.abs(diff)}% em relação a ${monthLabel(addMonths(s.cur, -1))}`} />
-            <Tile label="Saldo previsto no fim do mês" value={s.saldoPrevisto} color={s.saldoPrevisto < 0 ? 'var(--red)' : 'var(--green)'} icon={<IconCalendar />} hint="Atual + a receber − a pagar" />
-          </div>
-        </div>
-      </details>
-
-      <div className="grid grid-2">
-        <div className="stack">
-          {/* Próximos meses */}
-          <div className="panel">
-            <div className="panel-head">
-              <h2 className="section-title">Próximos meses</h2>
-              <Link href="/projecao" className="link">Ver previsão</Link>
-            </div>
-            <div className="list">
-              {proximos.map((r) => (
-                <div className="row" key={r.month}>
-                  <div className="row-main">
-                      <div className="row-title">{monthLabel(r.month, true)}</div>
-                      <div className="row-meta">entra {brl(r.receitas)} · sai {brl(r.despesas)}</div>
-                  </div>
-                  <div className={`row-amount ${r.fim < 0 ? 'neg' : 'pos'}`}>{brl(r.fim)}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Metas */}
-          <div className="panel">
-            <div className="panel-head">
-              <h2 className="section-title">Metas</h2>
-              <Link href="/metas" className="link">{metas.ativas.length ? 'Ver metas' : 'Criar meta'}</Link>
-            </div>
-            {metas.ativas.length === 0 ? <div className="empty" style={{ padding: 6 }}>Nenhuma meta ativa.</div> : (
-              <div className="stack" style={{ gap: 12 }}>
-                {metas.ativas.slice(0, 3).map((g) => (
-                  <div key={g.goal.id}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }} className="small">
-                      <strong>{g.goal.name}</strong>
-                      <span className="muted">{g.faltam > 0 ? <>guardar <strong style={{ color: 'var(--accent)' }}>{brl(g.porMes)}</strong>/mês</> : <span className="pos">alcançada ✓</span>}</span>
-                    </div>
-                    <div className="bar" style={{ marginTop: 6 }}><div style={{ width: `${g.pct}%` }} /></div>
-                  </div>
-                ))}
+      <Fold id="proximos" title="Próximos meses" right={<Link href="/projecao" className="link">Ver previsão</Link>}>
+        <div className="list">
+          {proximos.map((r) => (
+            <div className="row" key={r.month}>
+              <div className="row-main">
+                <div className="row-title">{monthLabel(r.month, true)}</div>
+                <div className="row-meta">entra {brl(r.receitas)} · sai {brl(r.despesas)}</div>
               </div>
-            )}
-          </div>
+              <div className={`row-amount ${r.fim < 0 ? 'neg' : 'pos'}`}>{brl(r.fim)}</div>
+            </div>
+          ))}
         </div>
+        <p className="faint small" style={{ marginBottom: 0 }}>{livre ? `Cartão com parcelas até ${monthLabel(livre)}.` : 'Sem parcelamentos no cartão.'}</p>
+      </Fold>
 
-        <div className="stack">
-          {/* Cartão */}
-          <div className="panel">
-            <div className="panel-head">
-              <h2 className="section-title">Cartão</h2>
-              <Link href="/cartao" className="link">Ver faturas</Link>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
-              <span className="muted small">
-                Fatura {fatura ? monthLabel(fatura.month) : ''} · vence {fatura ? dateLabel(fatura.due) : '—'}
-                {fatura?.status === 'vencida' && <span className="chip red" style={{ marginLeft: 6 }}>vencida</span>}
-              </span>
-              <span className="row-amount" style={{ fontSize: 22 }}>{brl(fatura?.open ?? 0)}</span>
-            </div>
-            <div className="faint small" style={{ marginTop: 4 }}>{livre ? `Parcelas até ${monthLabel(livre)}` : 'Sem parcelamentos'}</div>
-          </div>
-
-          {/* Gastos por pessoa */}
-          <div className="panel">
-            <div className="panel-head">
-              <h2 className="section-title">Gastos de cada um</h2>
-              <Link href="/perfis" className="link">Detalhes</Link>
-            </div>
-            <div className="stack" style={{ gap: 12 }}>
-              {totals.map(({ profile, despesas }) => (
-                <div key={profile.id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <Avatar profile={profile} size={32} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }} className="small">
-                      <strong>{profile.name}</strong><strong className="num">{brl(despesas)}</strong>
-                    </div>
-                    <div className="bar" style={{ marginTop: 5 }}><div style={{ width: `${(despesas / maxGasto) * 100}%`, background: profile.id === NOS.id ? NOS.color : profile.color }} /></div>
-                  </div>
+      <Fold id="pessoas" title="Gastos de cada um" right={<Link href="/perfis" className="link">Detalhes</Link>}>
+        <div className="stack" style={{ gap: 12 }}>
+          {perfis.map(({ s: p }) => (
+            <div key={p.profile.id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <Avatar profile={p.profile} size={32} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }} className="small">
+                  <strong>{p.profile.name}</strong><strong className="num">{brl(p.gastos)}</strong>
                 </div>
-              ))}
+                <div className="bar" style={{ marginTop: 5 }}><div style={{ width: `${(p.gastos / maxGasto) * 100}%`, background: p.profile.color }} /></div>
+              </div>
             </div>
-          </div>
+          ))}
+          <span className="faint small">Inclui 50% de tudo que é de “Nós”.</span>
         </div>
-      </div>
+      </Fold>
+
+      <Fold id="metas" title="Metas" right={<Link href="/metas" className="link">{metas.ativas.length ? 'Ver metas' : 'Criar meta'}</Link>}>
+        {metas.ativas.length === 0 ? <div className="empty" style={{ padding: 6 }}>Nenhuma meta ativa.</div> : (
+          <div className="stack" style={{ gap: 12 }}>
+            {metas.ativas.slice(0, 3).map((g) => (
+              <div key={g.goal.id}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }} className="small">
+                  <strong>{g.goal.name}</strong>
+                  <span className="muted">{g.faltam > 0 ? <>guardar <strong style={{ color: 'var(--accent)' }}>{brl(g.porMes)}</strong>/mês</> : <span className="pos">alcançada ✓</span>}</span>
+                </div>
+                <div className="bar" style={{ marginTop: 6 }}><div style={{ width: `${g.pct}%` }} /></div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Fold>
     </div>
   );
 }

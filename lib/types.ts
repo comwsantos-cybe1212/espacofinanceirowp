@@ -15,6 +15,7 @@ export type Tx = {
   month: string;
   recurrence: 'fixa' | 'variavel';
   payment: 'conta' | 'cartao';
+  method: string | null;
   group_id: string | null;
   inst_no: number;
   inst_total: number;
@@ -33,5 +34,8 @@ export type AppData = {
   txs: Tx[];
   savings: SavingMove[];
   openingBalance: number;
+  /** Opções da divisão em 3 no mês atual */
+  semGuardar: boolean;
+  semAdiantar: boolean;
   today: string;
 };

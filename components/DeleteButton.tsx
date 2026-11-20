@@ -16,7 +16,7 @@ export default function DeleteButton({ id, description, series, parcelado }: { i
 
   return (
     <>
-      <button type="button" className="btn btn-sm icon-btn btn-danger" title="Excluir" aria-label="Excluir"
+      <button type="button" className="btn btn-sm icon-btn btn-ghost btn-danger" title="Excluir" aria-label="Excluir"
         onClick={(e) => { e.preventDefault(); setOpen(true); }}>
         <IconTrash />
       </button>

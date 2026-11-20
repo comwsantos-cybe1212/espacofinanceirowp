@@ -1,47 +1,69 @@
+'use client';
+
 import { togglePaid } from '@/app/actions';
-import { incomeLabel } from '@/lib/categories';
-import { dateLabel, monthLabel } from '@/lib/dates';
-import { txStatus } from '@/lib/finance';
+import { categoryEmoji, methodLabel } from '@/lib/categories';
+import { monthLabel } from '@/lib/dates';
 import { brl } from '@/lib/format';
-import type { Profile, Tx } from '@/lib/types';
-import DeleteButton from './DeleteButton';
+import { NOS, type Profile, type Tx } from '@/lib/types';
 import ActionButton from './ActionButton';
 import Avatar from './Avatar';
-import { IconCheck, IconUndo } from './Icons';
+import DeleteButton from './DeleteButton';
+import { IconCard, IconCheck, IconRepeat, IconUndo } from './Icons';
+import { EditTransaction } from './TransactionForm';
 
-export default function TxRow({ t, profiles, today, actions = true }: { t: Tx; profiles: Profile[]; today: string; actions?: boolean }) {
-  const profile = profiles.find((p) => p.id === t.profile_id);
-  const status = txStatus(t, today);
+const fmtDate = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(0, 4)}`;
+
+export function statusOf(t: Tx, today: string) {
   const income = t.kind === 'receita';
+  if (t.paid) return { label: income ? 'Recebida' : 'Paga', cls: 'pos' };
+  if (t.due_date < today) return { label: 'Atrasada', cls: 'neg' };
+  return { label: income ? 'Prevista' : 'Em aberto', cls: 'warn' };
+}
+
+type Props = {
+  t: Tx; profiles: Profile[]; today: string; actions?: boolean;
+  card?: boolean; selected?: boolean; onSelect?: (id: number) => void;
+};
+
+export default function TxRow({ t, profiles, today, actions = true, card, selected, onSelect }: Props) {
+  const profile = profiles.find((p) => p.id === t.profile_id) ?? NOS;
+  const income = t.kind === 'receita';
+  const st = statusOf(t, today);
 
   return (
-    <div className="row">
-      <Avatar profile={profile} size={34} />
+    <div className={card ? `tx-card ${selected ? 'selected' : ''}` : 'row'}>
+      {onSelect && (
+        <input type="checkbox" className="round-check" checked={!!selected} onChange={() => onSelect(t.id)} aria-label={`Selecionar ${t.description}`} />
+      )}
+      {card
+        ? <span className={`tx-ico ${income ? 'in' : 'out'}`} aria-hidden>{income ? '↑' : '↓'}</span>
+        : <Avatar profile={profile} size={34} />}
       <div className="row-main">
-        <div className="row-title">
-          {t.description}
-          {t.inst_total > 1 && <span className="faint"> · {t.inst_no}/{t.inst_total}</span>}
+        <div className="row-title" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.description}</span>
+          {t.inst_total > 1 && <span className="chip">{t.inst_no}/{t.inst_total}</span>}
+          {t.recurrence === 'fixa' && <span className="mini-ico" title="Recorrente"><IconRepeat /></span>}
+          {t.payment === 'cartao' && <span className="mini-ico" title="Cartão"><IconCard /></span>}
         </div>
         <div className="row-meta">
-          <span>{income ? incomeLabel(t.subtype) : t.category}</span>
-          <span>· {t.payment === 'cartao' ? `fatura ${monthLabel(t.month)}` : dateLabel(t.due_date)}</span>
-          {t.recurrence === 'fixa' && <span className="chip violet">fixo</span>}
-          {t.payment === 'cartao' && <span className="chip cyan">cartão</span>}
-          {status === 'pago' && <span className="chip green">{income ? 'recebido' : 'pago'}</span>}
-          {status === 'pendente' && <span className="chip amber">{income ? 'a receber' : 'a pagar'}</span>}
-          {status === 'atrasado' && <span className="chip red">{income ? 'atrasado' : 'dívida'}</span>}
+          {card && <Avatar profile={profile} size={18} />}
+          <span>{categoryEmoji(t.category, t.kind)} {t.category}</span>
+          <span>· {profile.name}</span>
+          <span>· {fmtDate(t.purchase_date ?? t.due_date)}</span>
+          {!income && <span>· {methodLabel(t.method, t.payment)}{t.payment === 'cartao' && ` · fatura ${monthLabel(t.month)}`}</span>}
         </div>
       </div>
-      <div className={`row-amount ${income ? 'pos' : ''}`}>{income ? '+' : '−'} {brl(t.amount)}</div>
+      <div style={{ textAlign: 'right' }}>
+        <div className={`row-amount ${income ? 'pos' : 'neg'}`}>{income ? '+' : '−'}{brl(t.amount)}</div>
+        <div className={`status ${st.cls}`}>{st.label}</div>
+      </div>
       {actions && (
         <div className="row-actions">
-          <ActionButton
-            action={togglePaid.bind(null, t.id)}
-            className="btn btn-sm icon-btn"
-            title={t.paid ? 'Marcar como pendente' : income ? 'Marcar como recebido' : 'Marcar como pago'}
-          >
+          <ActionButton action={togglePaid.bind(null, t.id)} className="btn btn-sm icon-btn btn-ghost"
+            title={t.paid ? 'Marcar como pendente' : income ? 'Marcar como recebida' : 'Marcar como paga'}>
             {t.paid ? <IconUndo /> : <IconCheck />}
           </ActionButton>
+          <EditTransaction tx={t} profiles={profiles} />
           <DeleteButton id={t.id} description={t.description} series={!!t.group_id} parcelado={t.inst_total > 1} />
         </div>
       )}

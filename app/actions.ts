@@ -14,7 +14,7 @@ const str = (f: FormData, k: string) => String(f.get(k) ?? '').trim();
 
 type NewRow = {
   profile_id: number | null; kind: string; subtype: string | null; category: string; description: string;
-  amount: number; due_date: string; month: string; recurrence: string; payment: string; group_id: string | null;
+  amount: number; due_date: string; month: string; recurrence: string; payment: string; method: string | null; group_id: string | null;
   inst_no: number; inst_total: number; purchase_date: string | null; paid: boolean; paid_at: string | null;
 };
 
@@ -24,68 +24,70 @@ function split(total: number, n: number): number[] {
   return Array.from({ length: n }, (_, i) => (i === n - 1 ? total - base * (n - 1) : base));
 }
 
-export async function createTransaction(_: ActionResult | null, f: FormData): Promise<ActionResult> {
-  await requireAuth();
-  const today = todayBR();
+type Parsed = {
+  kind: 'receita' | 'despesa'; description: string; amount: number; date: string; profileId: number | null;
+  subtype: string | null; category: string; method: string; paid: boolean;
+};
 
+/** Lê e valida os campos comuns do formulário de lançamento */
+function parseForm(f: FormData): Parsed | string {
   const kind = str(f, 'kind') === 'receita' ? 'receita' : 'despesa';
   const description = str(f, 'description').slice(0, 120);
   const amount = parseBRL(str(f, 'amount'));
   const date = str(f, 'date');
-  const profileId = Number(str(f, 'profile_id')) || null; // vazio/0 = "Nós"
-  const paidNow = f.get('paid') === 'on';
-
-  if (!description) return { ok: false, error: 'Dê um nome ao lançamento.' };
-  if (!Number.isFinite(amount) || amount <= 0) return { ok: false, error: 'Informe um valor válido.' };
-  if (!isValidDate(date)) return { ok: false, error: 'Informe uma data válida.' };
-
+  if (!description) return 'Dê um nome ao lançamento.';
+  if (!Number.isFinite(amount) || amount <= 0) return 'Informe um valor válido.';
+  if (!isValidDate(date)) return 'Informe uma data válida.';
   let subtype: string | null = null;
   let category: string;
-  let recurrence: 'fixa' | 'variavel';
-  let payment: 'conta' | 'cartao' = 'conta';
-  let installments = 1;
-
   if (kind === 'receita') {
-    const st = INCOME_SUBTYPES.find((s) => s.value === str(f, 'subtype'));
-    if (!st) return { ok: false, error: 'Escolha o tipo da receita.' };
+    const st = INCOME_SUBTYPES.find((x) => x.value === str(f, 'subtype'));
+    if (!st) return 'Escolha a categoria da receita.';
     subtype = st.value;
     category = st.label;
-    recurrence = st.fixed === null ? (str(f, 'recurrence') === 'fixa' ? 'fixa' : 'variavel') : st.fixed ? 'fixa' : 'variavel';
   } else {
     category = str(f, 'category');
-    if (!(EXPENSE_CATEGORIES as readonly string[]).includes(category)) return { ok: false, error: 'Escolha uma categoria.' };
-    recurrence = str(f, 'recurrence') === 'fixa' ? 'fixa' : 'variavel';
-    payment = str(f, 'payment') === 'cartao' ? 'cartao' : 'conta';
-    if (payment === 'cartao' && recurrence === 'variavel') {
-      installments = Math.min(Math.max(Math.floor(Number(str(f, 'installments')) || 1), 1), 48);
-    }
+    if (!EXPENSE_CATEGORIES.some((c) => c.value === category)) return 'Escolha uma categoria.';
   }
+  const method = kind === 'despesa' && ['debito', 'pix', 'dinheiro', 'credito'].includes(str(f, 'method')) ? str(f, 'method') : 'debito';
+  return { kind, description, amount, date, profileId: Number(str(f, 'profile_id')) || null, subtype, category, method, paid: str(f, 'status') === 'pago' };
+}
 
+export async function createTransaction(_: ActionResult | null, f: FormData): Promise<ActionResult> {
+  await requireAuth();
+  const today = todayBR();
+  const p = parseForm(f);
+  if (typeof p === 'string') return { ok: false, error: p };
+
+  const recurrence: 'fixa' | 'variavel' = str(f, 'classification') === 'recorrente' ? 'fixa' : 'variavel';
+  const payment: 'conta' | 'cartao' = p.kind === 'despesa' && p.method === 'credito' ? 'cartao' : 'conta';
+  const installments = payment === 'cartao' && recurrence === 'variavel'
+    ? Math.min(Math.max(Math.floor(Number(str(f, 'installments')) || 1), 1), 48) : 1;
   // Parcelado: o valor pode ser informado como total ou como valor de cada parcela
-  const total = installments > 1 && str(f, 'amount_mode') === 'parcela' ? amount * installments : amount;
+  const total = installments > 1 && str(f, 'amount_mode') === 'parcela' ? p.amount * installments : p.amount;
 
   const rows: NewRow[] = [];
-  const common = { profile_id: profileId, kind, subtype, category, description, recurrence, payment };
+  const common = { profile_id: p.profileId, kind: p.kind, subtype: p.subtype, category: p.category, description: p.description, recurrence, payment, method: p.kind === 'despesa' ? p.method : null };
 
   if (payment === 'cartao' && installments > 1) {
-    // Parcelado: o total é dividido; a 1ª parcela segue a regra do dia 17
-    const first = invoiceMonth(date);
+    // A 1ª parcela segue a regra do dia 17; as demais caem uma por fatura
+    const first = invoiceMonth(p.date);
     split(total, installments).forEach((value, i) => {
       const month = monthOf(addMonthsDate(`${first}-01`, i));
       rows.push({ ...common, amount: value, month, due_date: invoiceDue(month), group_id: null, inst_no: i + 1,
-        inst_total: installments, purchase_date: date, paid: false, paid_at: null });
+        inst_total: installments, purchase_date: p.date, paid: false, paid_at: null });
     });
   } else {
-    const count = recurrence === 'fixa' ? 12 : 1; // fixos se repetem por 1 ano
+    const count = recurrence === 'fixa' ? 12 : 1; // recorrentes se repetem por 1 ano
     for (let i = 0; i < count; i++) {
-      const d = addMonthsDate(date, i);
+      const d = addMonthsDate(p.date, i);
       if (payment === 'cartao') {
         const month = invoiceMonth(d);
-        rows.push({ ...common, amount, month, due_date: invoiceDue(month), group_id: null, inst_no: 1, inst_total: 1,
+        rows.push({ ...common, amount: p.amount, month, due_date: invoiceDue(month), group_id: null, inst_no: 1, inst_total: 1,
           purchase_date: d, paid: false, paid_at: null });
       } else {
-        const paid = i === 0 && paidNow;
-        rows.push({ ...common, amount, month: monthOf(d), due_date: d, group_id: null, inst_no: 1, inst_total: 1,
+        const paid = i === 0 && p.paid; // status vale para o primeiro mês
+        rows.push({ ...common, amount: p.amount, month: monthOf(d), due_date: d, group_id: null, inst_no: 1, inst_total: 1,
           purchase_date: null, paid, paid_at: paid ? (d <= today ? d : today) : null });
       }
     }
@@ -96,6 +98,60 @@ export async function createTransaction(_: ActionResult | null, f: FormData): Pr
   await sql`insert into transactions ${sql(rows.map((r) => ({ ...r, group_id: group })))}`;
   refresh();
   return { ok: true };
+}
+
+/** Edita um lançamento; com "aplicar aos próximos", nome/valor/categoria/responsável valem para o resto da série */
+export async function updateTransaction(_: ActionResult | null, f: FormData): Promise<ActionResult> {
+  await requireAuth();
+  const id = Number(str(f, 'id'));
+  const p = parseForm(f);
+  if (typeof p === 'string') return { ok: false, error: p };
+  const sql = await db();
+  const [t] = await sql`select * from transactions where id = ${id}`;
+  if (!t) return { ok: false, error: 'Lançamento não encontrado.' };
+  const today = todayBR();
+
+  let due = t.due_date as string, month = t.month as string, purchase = t.purchase_date as string | null;
+  let payment = t.payment as string, method = p.kind === 'despesa' ? p.method : null;
+  if (t.payment === 'cartao' && t.inst_total > 1) {
+    method = 'credito'; // parcelas continuam nas faturas já calculadas
+  } else if (p.method === 'credito' && p.kind === 'despesa') {
+    payment = 'cartao'; purchase = p.date; month = invoiceMonth(p.date); due = invoiceDue(month);
+  } else {
+    payment = 'conta'; purchase = null; due = p.date; month = monthOf(p.date);
+  }
+  const paid = payment === 'cartao' ? t.paid : p.paid;
+  const paidAt = paid ? (t.paid_at ?? (due <= today ? due : today)) : null;
+
+  await sql`update transactions set description = ${p.description}, amount = ${p.amount}, category = ${p.category}, subtype = ${p.subtype},
+    profile_id = ${p.profileId}, method = ${method}, payment = ${payment}, due_date = ${due}, month = ${month}, purchase_date = ${purchase},
+    paid = ${paid}, paid_at = ${paidAt} where id = ${id}`;
+  if (t.group_id && f.get('apply_next') === 'on') {
+    await sql`update transactions set description = ${p.description}, amount = ${p.amount}, category = ${p.category}, subtype = ${p.subtype},
+      profile_id = ${p.profileId} where group_id = ${t.group_id} and month > ${t.month}`;
+  }
+  refresh();
+  return { ok: true };
+}
+
+/** Exclui vários lançamentos selecionados (só os marcados, não a série inteira) */
+export async function deleteMany(ids: number[]) {
+  await requireAuth();
+  const list = ids.map(Number).filter((n) => Number.isInteger(n) && n > 0).slice(0, 2000);
+  if (!list.length) return;
+  const sql = await db();
+  await sql`delete from transactions where id in ${sql(list)}`;
+  refresh();
+}
+
+/** Liga/desliga "não economizar" ou "não adiantar contas" no mês atual */
+export async function setRuleFlag(flag: 'sem_guardar' | 'sem_adiantar', on: boolean) {
+  await requireAuth();
+  const key = `${flag}:${monthOf(todayBR())}`;
+  const sql = await db();
+  if (on) await sql`insert into settings (key, value) values (${key}, '1') on conflict (key) do update set value = '1'`;
+  else await sql`delete from settings where key = ${key}`;
+  refresh();
 }
 
 export async function togglePaid(id: number) {
