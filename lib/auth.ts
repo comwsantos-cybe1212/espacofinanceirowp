@@ -28,7 +28,7 @@ export async function createSessionToken(): Promise<string> {
 }
 
 export async function verifySessionToken(token: string | undefined): Promise<boolean> {
-  if (!token || !process.env.APP_PASSWORD) return false;
+  if (!token || !String(process.env.APP_PASSWORD ?? '').trim()) return false;
   const [exp, sig] = token.split('.');
   if (!exp || !sig || !/^\d+$/.test(exp) || Number(exp) < Date.now()) return false;
   return safeEqual(sig, await hmac(exp));

@@ -22,7 +22,7 @@ export default function LoginPage() {
         return;
       }
       const data = await res.json().catch(() => ({}));
-      setError(data.error ?? 'Não foi possível entrar.');
+      setError(data.error ?? `Erro no servidor (${res.status}). Abra /api/saude para ver o diagnóstico.`);
     } catch {
       setError('Sem conexão. Tente novamente.');
     }

@@ -22,8 +22,27 @@ function Brand() {
   );
 }
 
+function SetupNeeded({ detail }: { detail: string }) {
+  return (
+    <main className="login">
+      <div className="panel" style={{ maxWidth: 520 }}>
+        <Mascot size={56} mood="alerta" />
+        <h1 className="page-title" style={{ fontSize: 22, marginTop: 10 }}>Falta conectar o banco de dados</h1>
+        <p className="muted">A senha funcionou, mas o app ainda não consegue salvar os dados. Na Vercel:</p>
+        <ol className="small" style={{ lineHeight: 1.7 }}>
+          <li>Abra o projeto → <strong>Storage</strong> → <strong>Create Database</strong> → <strong>Neon (Postgres)</strong> → plano grátis → <strong>Connect</strong>.</li>
+          <li>Vá em <strong>Deployments</strong> → <strong>⋯</strong> → <strong>Redeploy</strong>.</li>
+          <li>Abra o app de novo.</li>
+        </ol>
+        <p className="faint small">Detalhe técnico: {detail}</p>
+      </div>
+    </main>
+  );
+}
+
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const sql = await db();
+  let sql: Awaited<ReturnType<typeof db>>;
+  try { sql = await db(); } catch (e) { return <SetupNeeded detail={e instanceof Error ? e.message.slice(0, 200) : 'erro desconhecido'} />; }
   const [profiles, [{ atrasadas }]] = await Promise.all([
     sql<Profile[]>`select id, name, color, photo from profiles order by id`,
     sql`select count(*)::int as atrasadas from transactions where kind = 'despesa' and not paid and due_date < ${todayBR()}`,
