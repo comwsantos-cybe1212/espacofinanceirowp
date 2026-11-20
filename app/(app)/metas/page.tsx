@@ -1,6 +1,7 @@
 import { deleteGoal, toggleGoal } from '@/app/actions';
 import ActionButton from '@/components/ActionButton';
 import GoalButton from '@/components/GoalForm';
+import InfoTip from '@/components/InfoTip';
 import { IconCheck, IconPiggy, IconTarget, IconTrash, IconUndo } from '@/components/Icons';
 import { monthLabel } from '@/lib/dates';
 import { goalsPlan, ruleOfThree } from '@/lib/finance';
@@ -27,8 +28,7 @@ export default async function Metas() {
     <div className="stack">
       <div className="page-head">
         <div>
-          <h1 className="page-title">Metas</h1>
-          <p className="page-sub">Planejem e acompanhem os objetivos de vocês</p>
+          <h1 className="page-title">Metas<InfoTip inline align="left" text="Digam quanto precisam e até quando. O app usa a economia guardada (começando pela meta de prazo mais próximo) e calcula quanto ainda falta juntar por mês, comparando com o valor de Guardar da divisão do mês." /></h1>
         </div>
         <GoalButton />
       </div>

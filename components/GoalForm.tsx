@@ -5,6 +5,7 @@ import { createPortal, useFormState, useFormStatus } from 'react-dom';
 import { saveGoal, type ActionResult } from '@/app/actions';
 import type { Goal } from '@/lib/types';
 import { IconPencil } from './Icons';
+import InfoTip from './InfoTip';
 
 function Submit() {
   const { pending } = useFormStatus();
@@ -17,7 +18,7 @@ function Form({ goal, onDone }: { goal?: Goal; onDone: () => void }) {
   return (
     <form action={action} className="form-grid">
       {goal && <input type="hidden" name="id" value={goal.id} />}
-      <label className="field full"><span>Nome da meta</span>
+      <label className="field full"><span>Nome da meta<InfoTip inline align="left" text="O app usa a economia guardada e calcula quanto ainda falta juntar por mês até o prazo." /></span>
         <input className="input" name="name" defaultValue={goal?.name} placeholder="Ex.: Casa, viagem, reserva de emergência" maxLength={60} required />
       </label>
       <label className="field"><span>Quanto precisamos (R$)</span>
@@ -26,7 +27,6 @@ function Form({ goal, onDone }: { goal?: Goal; onDone: () => void }) {
       <label className="field"><span>Até quando</span>
         <input className="input" type="month" name="deadline" defaultValue={goal?.deadline} required />
       </label>
-      <p className="note full" style={{ margin: 0 }}>O app usa a economia guardada e calcula quanto ainda falta juntar por mês até o prazo.</p>
       {state?.error && <p className="error full" role="alert">{state.error}</p>}
       <div className="full" style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
         <button type="button" className="btn btn-ghost" onClick={onDone}>Cancelar</button>

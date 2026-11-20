@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import LaunchList, { LaunchFilters } from '@/components/LaunchList';
 import MonthPicker from '@/components/MonthPicker';
+import InfoTip from '@/components/InfoTip';
 import { isValidMonth, monthOf } from '@/lib/dates';
 import { brl } from '@/lib/format';
 import { loadData } from '@/lib/data';
@@ -44,8 +45,7 @@ export default async function Lancamentos({ searchParams }: { searchParams: SP }
     <div className="stack">
       <div className="page-head">
         <div>
-          <h1 className="page-title">Lançamentos</h1>
-          <p className="page-sub">Toque em ✓ para marcar como pago ou recebido.</p>
+          <h1 className="page-title">Lançamentos<InfoTip inline align="left" text="Toque em ✓ para marcar como pago ou recebido, no lápis para editar e na lixeira para excluir. A busca procura em todos os meses." /></h1>
         </div>
         {!q && <MonthPicker month={month} path="/lancamentos" extra={Object.entries(searchParams).filter(([k]) => k !== 'm').map(([k, v]) => `&${k}=${encodeURIComponent(String(v))}`).join('')} />}
       </div>

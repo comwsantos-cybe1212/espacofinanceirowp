@@ -1,4 +1,5 @@
 import Avatar from '@/components/Avatar';
+import InfoTip from '@/components/InfoTip';
 import { ProfileEditor } from '@/components/Forms';
 import MonthPicker from '@/components/MonthPicker';
 import { ProfileView } from '@/components/ProfileView';
@@ -16,8 +17,7 @@ export default async function Perfis({ searchParams }: { searchParams: { m?: str
     <div className="stack">
       <div className="page-head">
         <div>
-          <h1 className="page-title">Perfis</h1>
-          <p className="page-sub">Ganhos e gastos de cada um em {monthLabel(month, true).toLowerCase()}. “Nós” conta 50% para cada.</p>
+          <h1 className="page-title">Perfis<InfoTip inline align="left" text={'Ganhos e gastos de cada um no mês escolhido. Tudo que é de "Nós" conta 50% para cada.'} /></h1>
         </div>
         <MonthPicker month={month} path="/perfis" />
       </div>

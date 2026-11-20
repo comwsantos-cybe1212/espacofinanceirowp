@@ -8,6 +8,7 @@ import { addMonths, invoiceMonth, monthLabel, todayBR, CARD_CLOSE_DAY, CARD_DUE_
 import { brl, parseBRL } from '@/lib/format';
 import type { Profile, Tx } from '@/lib/types';
 import { IconPencil } from './Icons';
+import InfoTip from './InfoTip';
 
 function Submit({ edit }: { edit: boolean }) {
   const { pending } = useFormStatus();
@@ -70,7 +71,7 @@ function Form({ profiles, tx, onDone }: { profiles: Profile[]; tx?: Tx; onDone: 
         <input className="input" name="amount" inputMode="decimal" placeholder="0,00" value={amount} onChange={(e) => setAmount(e.target.value)} required />
       </label>
       <label className="field">
-        <span>{isCard ? 'Data da compra' : 'Data'}</span>
+        <span>{isCard ? 'Data da compra' : 'Data'}{hint.length > 0 && <InfoTip inline text={<>{hint.map((h) => <span key={h} style={{ display: 'block' }}>{h}</span>)}</>} />}</span>
         <input className="input" type="date" name={lockedInstallment ? undefined : 'date'} value={date} onChange={(e) => setDate(e.target.value)} disabled={lockedInstallment} required />
         {lockedInstallment && <input type="hidden" name="date" value={date} />}
       </label>
@@ -166,7 +167,6 @@ function Form({ profiles, tx, onDone }: { profiles: Profile[]; tx?: Tx; onDone: 
         </label>
       )}
 
-      {hint.length > 0 && <div className="note full">{hint.map((h) => <div key={h}>{h}</div>)}</div>}
       {state?.error && <p className="error full" role="alert">{state.error}</p>}
 
       <div className="full" style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>

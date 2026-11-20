@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { MonthBars } from '@/components/Charts';
+import InfoTip from '@/components/InfoTip';
 import { monthLabel } from '@/lib/dates';
 import { projection } from '@/lib/finance';
 import { brl } from '@/lib/format';
@@ -14,8 +15,7 @@ export default async function Previsao({ searchParams }: { searchParams: { regra
     <div className="stack">
       <div className="page-head" style={{ marginBottom: 0 }}>
         <div>
-          <h1 className="page-title">Previsão</h1>
-          <p className="page-sub">O que sobra em um mês passa para o seguinte.</p>
+          <h1 className="page-title">Previsão<InfoTip inline align="left" text="O que sobra em um mês passa para o seguinte. Este mês mostra só o que ainda falta receber e pagar. Gastos variáveis futuros entram quando forem lançados. Com regra de 3: todo mês ⅓ vai para os valores individuais, ⅓ é guardado e ⅓ adianta contas." /></h1>
         </div>
         <div className="segmented" style={{ minWidth: 280 }}>
           <Link href="/projecao" className={!regra ? 'on' : ''}>Sem regra</Link>
@@ -23,7 +23,6 @@ export default async function Previsao({ searchParams }: { searchParams: { regra
         </div>
       </div>
 
-      {regra && <p className="note" style={{ margin: 0 }}>Simulando: todo mês ⅓ da sobra vai para os valores individuais, ⅓ é guardado e ⅓ adianta contas.</p>}
 
       <div className="panel">
         <div className="list">
@@ -68,7 +67,6 @@ export default async function Previsao({ searchParams }: { searchParams: { regra
                 ))}
               </tbody>
             </table>
-            <p className="faint small" style={{ marginBottom: 0 }}>Este mês mostra só o que ainda falta receber/pagar. Gastos variáveis futuros entram quando forem lançados.</p>
           </div>
         </div>
       </details>

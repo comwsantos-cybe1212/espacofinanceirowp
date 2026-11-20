@@ -1,5 +1,6 @@
 import { deleteSaving } from '@/app/actions';
 import ActionButton from '@/components/ActionButton';
+import InfoTip from '@/components/InfoTip';
 import { ClearDataForm, OpeningBalanceForm, SavingsForm } from '@/components/Forms';
 import { IconTrash } from '@/components/Icons';
 import ThemeToggle from '@/components/ThemeToggle';
@@ -16,14 +17,12 @@ export default async function Ajustes() {
       <div className="page-head">
         <div>
           <h1 className="page-title">Ajustes</h1>
-          <p className="page-sub">Saldo inicial, economia, tema e sessão.</p>
         </div>
       </div>
 
       <div className="grid grid-2">
         <div className="panel">
-          <h2 className="section-title" style={{ marginBottom: 8 }}>Saldo inicial</h2>
-          <p className="muted small" style={{ marginTop: 0 }}>O saldo atual = saldo inicial + tudo que foi recebido − tudo que foi pago − o que foi guardado.</p>
+          <h2 className="section-title" style={{ marginBottom: 8 }}>Saldo inicial<InfoTip inline align="left" text="Quanto havia na conta quando começaram a usar o app. Saldo atual = saldo inicial + tudo que foi recebido − tudo que foi pago − o que foi guardado." /></h2>
           <OpeningBalanceForm current={(d.openingBalance / 100).toFixed(2).replace('.', ',')} />
         </div>
 
@@ -47,8 +46,7 @@ export default async function Ajustes() {
       </div>
 
       <div className="panel" style={{ marginTop: 14 }}>
-        <h2 className="section-title" style={{ marginBottom: 4 }}>Recomeçar</h2>
-        <p className="muted small" style={{ marginTop: 0 }}>Escolha o que apagar. Perfis e fotos são mantidos.</p>
+        <h2 className="section-title" style={{ marginBottom: 10 }}>Recomeçar<InfoTip inline align="left" text="Escolha o que apagar. Perfis e fotos são mantidos." /></h2>
         <ClearDataForm />
       </div>
 

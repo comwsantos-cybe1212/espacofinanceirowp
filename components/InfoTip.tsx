@@ -2,8 +2,11 @@
 
 import { useEffect, useRef, useState } from 'react';
 
-/** Pequeno "i": ao tocar, explica o que o número significa */
-export default function InfoTip({ text }: { text: string }) {
+/**
+ * Pequeno "i": a explicação só aparece ao tocar.
+ * inline = ao lado de um título/texto; align = para que lado o balão abre.
+ */
+export default function InfoTip({ text, inline, align = 'right' }: { text: React.ReactNode; inline?: boolean; align?: 'left' | 'right' }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLSpanElement>(null);
   useEffect(() => {
@@ -13,9 +16,9 @@ export default function InfoTip({ text }: { text: string }) {
     return () => document.removeEventListener('mousedown', close);
   }, [open]);
   return (
-    <span className="info" ref={ref}>
-      <button type="button" className="info-btn" aria-label="O que é isso?" aria-expanded={open} onClick={() => setOpen((o) => !o)}>i</button>
-      <span className="info-pop" role="tooltip" hidden={!open}>{text}</span>
+    <span className={`info ${inline ? 'inline' : ''}`} ref={ref}>
+      <button type="button" className="info-btn" aria-label="O que é isso?" aria-expanded={open} onClick={(e) => { e.preventDefault(); e.stopPropagation(); setOpen((o) => !o); }}>i</button>
+      <span className={`info-pop ${align}`} role="tooltip" hidden={!open}>{text}</span>
     </span>
   );
 }

@@ -8,6 +8,7 @@ import { monthLabel } from '@/lib/dates';
 import { brl } from '@/lib/format';
 import type { Individual, ProfileSummary } from '@/lib/finance';
 import Avatar from './Avatar';
+import InfoTip from './InfoTip';
 
 type Extra = (Individual & { dividido: boolean }) | null;
 
@@ -21,7 +22,7 @@ export function ProfileView({ s, individual }: { s: ProfileSummary; individual?:
     <div className="stack" style={{ gap: 14 }}>
       <div className="grid grid-2" style={{ gridTemplateColumns: '1fr 1fr', gap: 10 }}>
         <div className="kpi green"><small>Ganhos</small><b>{brl(s.ganhos)}</b></div>
-        <div className="kpi red"><small>Gastos</small><b>{brl(s.gastos)}</b></div>
+        <div className="kpi red"><small>Gastos<InfoTip inline text={'Gastos e ganhos de "Nós" contam 50% para cada um.'} /></small><b>{brl(s.gastos)}</b></div>
       </div>
       <div className="grid grid-2" style={{ gridTemplateColumns: '1fr 1fr', gap: 10 }}>
         <div className="third" style={{ gap: 2 }}><span className="small muted">Fixos</span><strong className="num">{brl(s.fixos)}</strong></div>
@@ -29,7 +30,7 @@ export function ProfileView({ s, individual }: { s: ProfileSummary; individual?:
       </div>
       {individual && (
         <div className="third" style={{ background: 'var(--accent-soft)' }}>
-          <div className="third-head">🙋 Valor individual atual <span className={`third-value ${individual.atual < 0 ? 'neg' : ''}`}>{brl(individual.atual)}</span></div>
+          <div className="third-head"><span>🙋 Valor individual atual<InfoTip inline align="left" text="Pode gastar sem consultar o outro. O que não gastar continua aqui no mês seguinte." /></span> <span className={`third-value ${individual.atual < 0 ? 'neg' : ''}`}>{brl(individual.atual)}</span></div>
           <span className="small muted">
             {individual.dividido
               ? <>Este mês foi adicionado <strong className="pos">{brl(individual.cotaMes)}</strong>.</>
@@ -37,12 +38,11 @@ export function ProfileView({ s, individual }: { s: ProfileSummary; individual?:
             {individual.anterior !== 0 && <> Vindo dos meses anteriores: {brl(individual.anterior)}.</>}
             {individual.gastoMes > 0 && <> Gasto este mês: {brl(individual.gastoMes)}.</>}
           </span>
-          <span className="faint small">Pode gastar sem consultar o outro. O que não gastar continua aqui no mês seguinte.</span>
         </div>
       )}
 
       <div className="panel" style={{ padding: 16 }}>
-        <h3 className="section-title" style={{ marginBottom: 6 }}>No que mais gastou</h3>
+        <h3 className="section-title" style={{ marginBottom: 6 }}>No que mais gastou<InfoTip inline align="left" text="Toque em uma parte do gráfico ou no nome da categoria para ver os lançamentos." /></h3>
         {data.length === 0 ? <div className="empty">Sem gastos neste mês.</div> : (
           <>
             <div style={{ width: '100%', height: 210 }}>
@@ -64,7 +64,6 @@ export function ProfileView({ s, individual }: { s: ProfileSummary; individual?:
                 </button>
               ))}
             </div>
-            <p className="faint small" style={{ textAlign: 'center', margin: '4px 0' }}>Clique em uma parte para ver os lançamentos</p>
             <p style={{ textAlign: 'center', margin: 0 }}>Total: <strong>{brl(s.gastos)}</strong></p>
           </>
         )}
@@ -80,7 +79,6 @@ export function ProfileView({ s, individual }: { s: ProfileSummary; individual?:
           </div>
         )}
       </div>
-      <p className="faint small" style={{ margin: 0 }}>Gastos e ganhos de “Nós” contam 50% para cada um.</p>
     </div>
   );
 }

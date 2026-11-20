@@ -1,6 +1,7 @@
 import { payInvoice } from '@/app/actions';
 import ActionButton from '@/components/ActionButton';
 import Avatar from '@/components/Avatar';
+import InfoTip from '@/components/InfoTip';
 import { IconCard, IconChevronDown, IconRepeat } from '@/components/Icons';
 import TxRow from '@/components/TxRow';
 import { addMonths, CARD_CLOSE_DAY, CARD_DUE_DAY, dateLabel, monthLabel } from '@/lib/dates';
@@ -40,8 +41,7 @@ export default async function Cartao() {
     <div className="stack">
       <div className="page-head">
         <div>
-          <h1 className="page-title">Cartão</h1>
-          <p className="page-sub">Fecha dia {CARD_CLOSE_DAY} e vence dia {CARD_DUE_DAY}. Compras a partir do dia {CARD_CLOSE_DAY + 1} vão para a próxima fatura.</p>
+          <h1 className="page-title">Cartão<InfoTip inline align="left" text={`Fecha dia ${CARD_CLOSE_DAY} e vence dia ${CARD_DUE_DAY}. Compras a partir do dia ${CARD_CLOSE_DAY + 1} vão para a próxima fatura. Toque numa fatura para ver as compras.`} /></h1>
         </div>
       </div>
 

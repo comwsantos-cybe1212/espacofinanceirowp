@@ -31,7 +31,6 @@ export function SaveToBox({ cents, saldo }: { cents: number; saldo: number }) {
         <input className="input" value={value} onChange={(e) => setValue(e.target.value)} inputMode="decimal" aria-label="Valor a guardar" style={{ padding: '7px 10px' }} />
         <button className="btn btn-primary btn-sm" onClick={go} disabled={pending}>{pending ? '…' : 'Guardar na caixinha'}</button>
       </div>
-      <span className="faint small">Enquanto não confirmar, o valor continua no saldo atual.</span>
       {err && <span className="error">{err}</span>}
     </div>
   );
