@@ -47,10 +47,11 @@ export function AdvancePicker({ suggestions, all }: { suggestions: Tx[]; all: Tx
   };
   const label = (t: Tx) => `${t.description}${t.inst_total > 1 ? ` ${t.inst_no}/${t.inst_total}` : ''} · ${monthLabel(t.month)} · ${brl(t.amount)}`;
   return (
-    <div className="stack" style={{ gap: 8 }}>
+    <details className="more advance">
+      <summary>Sugestão do que adiantar{suggestions.length > 0 ? ` (${suggestions.length})` : ''}</summary>
+      <div className="stack" style={{ gap: 8 }}>
       {suggestions.length > 0 ? (
         <>
-          <span className="small" style={{ fontWeight: 700 }}>Sugestão do que adiantar:</span>
           <div className="list">
             {suggestions.map((t) => (
               <div className="row" key={t.id} style={{ padding: '7px 0' }}>
@@ -73,6 +74,7 @@ export function AdvancePicker({ suggestions, all }: { suggestions: Tx[]; all: Tx
           <button className="btn btn-sm" disabled={!other || pending} onClick={() => { const t = all.find((x) => String(x.id) === other); if (t) pay(t); setOther(''); }}>Adiantar</button>
         </div>
       )}
-    </div>
+      </div>
+    </details>
   );
 }
