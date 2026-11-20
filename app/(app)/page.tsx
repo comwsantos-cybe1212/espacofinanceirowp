@@ -3,7 +3,7 @@ import { payNow } from '@/app/actions';
 import ActionButton from '@/components/ActionButton';
 import Avatar from '@/components/Avatar';
 import { QuickSave } from '@/components/Forms';
-import { IconAlert, IconArrowDown, IconArrowUp, IconCalendar, IconPiggy, IconTrendDown, IconWallet } from '@/components/Icons';
+import { IconArrowDown, IconArrowUp, IconCalendar, IconPiggy, IconTrendDown, IconWallet } from '@/components/Icons';
 import TxRow from '@/components/TxRow';
 import { addMonths, dateLabel, monthLabel } from '@/lib/dates';
 import { currentInvoice, freeOfInstallmentsAfter, goalsPlan, monthTotals, projection, ruleOfThree, spendingByProfile, summary } from '@/lib/finance';
@@ -39,6 +39,7 @@ export default async function Inicio() {
   const { totals } = spendingByProfile(d, s.cur);
   const maxGasto = Math.max(1, ...totals.map((t) => t.despesas));
   const metas = goalsPlan(d);
+  const recebidoMes = d.txs.filter((t) => t.kind === 'receita' && t.paid && t.month === s.cur).reduce((a, t) => a + t.amount, 0);
 
   return (
     <div className="stack">
@@ -58,20 +59,12 @@ export default async function Inicio() {
         ))}
       </div>
 
-      <div className="section-label"><span className="ico"><IconWallet /></span>Atual</div>
-      <div className="grid grid-3 tiles">
+      <div className="grid grid-4 tiles">
         <Tile label="Saldo atual" value={s.saldoAtual} color={s.saldoAtual < 0 ? 'var(--red)' : 'var(--green)'} icon={<IconWallet />} hint="Dinheiro na conta hoje" />
-        <Tile label="Gastos do mês" value={este.despesas} color="var(--red)" icon={<IconTrendDown />}
-          hint={diff === null ? 'Tudo que saiu ou vai sair este mês' : `${diff > 0 ? '▲' : '▼'} ${Math.abs(diff)}% em relação a ${monthLabel(addMonths(s.cur, -1))}`} />
-        <Tile label="Economia" value={s.savingsTotal} color="var(--blue)" icon={<IconPiggy />} hint="Guardado, separado do saldo" />
-      </div>
-
-      <div className="section-label"><span className="ico" style={{ background: 'color-mix(in srgb, var(--pink) 14%, var(--surface))', color: 'var(--pink)' }}><IconCalendar /></span>Previsto</div>
-      <div className="grid grid-auto tiles">
-        <Tile label="Saldo no fim do mês" value={s.saldoPrevisto} color={s.saldoPrevisto < 0 ? 'var(--red)' : 'var(--green)'} icon={<IconWallet />} hint="Atual + a receber − a pagar" />
-        <Tile label="A receber" value={s.aReceber} color="var(--text)" icon={<IconArrowUp />} hint="Até o fim do mês" />
-        <Tile label="A pagar" value={s.aPagar} color="var(--red)" icon={<IconArrowDown />} hint="Até o fim do mês" />
-        {s.totalDividas > 0 && <Tile label="Contas atrasadas" value={s.totalDividas} color="var(--red)" icon={<IconAlert />} hint={`${s.dividas.length} conta(s) de meses anteriores`} />}
+        <Tile label="A receber" value={s.aReceber} color="var(--blue)" icon={<IconArrowUp />} hint={`${s.receber.length} lançamento(s) pendente(s)`} />
+        <Tile label="A pagar" value={s.aPagar + s.totalDividas} color="var(--red)" icon={<IconArrowDown />}
+          hint={s.totalDividas > 0 ? <span className="neg">inclui {brl(s.totalDividas)} atrasado</span> : `${s.pagar.length} conta(s) pendente(s)`} />
+        <Tile label="Economia" value={s.savingsTotal} color="var(--accent)" icon={<IconPiggy />} hint="Guardado, separado do saldo" />
       </div>
 
       {s.dividas.length > 0 && (
@@ -145,6 +138,18 @@ export default async function Inicio() {
         )}
       </div>
 
+      <details className="more">
+        <summary>Ver recebido, gasto e saldo previsto do mês</summary>
+        <div className="stack">
+          <div className="grid grid-3 tiles">
+            <Tile label="Recebido no mês" value={recebidoMes} color="var(--green)" icon={<IconArrowUp />} hint="Receitas já recebidas" />
+            <Tile label="Gasto no mês" value={este.despesas} color="var(--red)" icon={<IconTrendDown />}
+              hint={diff === null ? 'Tudo que saiu ou vai sair este mês' : `${diff > 0 ? '▲' : '▼'} ${Math.abs(diff)}% em relação a ${monthLabel(addMonths(s.cur, -1))}`} />
+            <Tile label="Saldo previsto no fim do mês" value={s.saldoPrevisto} color={s.saldoPrevisto < 0 ? 'var(--red)' : 'var(--green)'} icon={<IconCalendar />} hint="Atual + a receber − a pagar" />
+          </div>
+        </div>
+      </details>
+
       <div className="grid grid-2">
         <div className="stack">
           {/* Próximos meses */}
@@ -157,8 +162,8 @@ export default async function Inicio() {
               {proximos.map((r) => (
                 <div className="row" key={r.month}>
                   <div className="row-main">
-                    <div className="row-title">{monthLabel(r.month, true)}</div>
-                    <div className="row-meta">entra {brl(r.receitas)} · sai {brl(r.despesas)}</div>
+                      <div className="row-title">{monthLabel(r.month, true)}</div>
+                      <div className="row-meta">entra {brl(r.receitas)} · sai {brl(r.despesas)}</div>
                   </div>
                   <div className={`row-amount ${r.fim < 0 ? 'neg' : 'pos'}`}>{brl(r.fim)}</div>
                 </div>
