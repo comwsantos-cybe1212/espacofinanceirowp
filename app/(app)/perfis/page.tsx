@@ -24,7 +24,8 @@ export default async function Perfis({ searchParams }: { searchParams: { m?: str
 
       <div className="grid grid-2">
         {d.profiles.map((p) => {
-          const ind = month === cur ? rule.diversao.find((x) => x.profile.id === p.id) ?? null : null;
+          const found = rule.individuais.find((x) => x.profile.id === p.id);
+          const ind = month === cur && found ? { ...found, dividido: rule.dividido } : null;
           return (
             <div key={p.id} className="panel stack" style={{ gap: 14 }}>
               <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>

@@ -6,7 +6,7 @@ export const EXPENSE_CATEGORIES = [
   { value: 'Transporte', emoji: '🚗' },
   { value: 'Saúde', emoji: '💊' },
   { value: 'Educação', emoji: '📚' },
-  { value: 'Diversão', emoji: '🎉' },
+  { value: 'Valor individual', emoji: '🙋' },
   { value: 'Compras', emoji: '🛍️' },
   { value: 'Assinaturas', emoji: '📺' },
   { value: 'Serviços', emoji: '🔧' },
@@ -28,11 +28,12 @@ export const METHODS = [
   { value: 'credito', label: 'Crédito' },
 ] as const;
 
-export const FUN_CATEGORY = 'Diversão';
+/** Gastos nesta categoria saem do valor individual de quem gastou */
+export const INDIVIDUAL_CATEGORY = 'Valor individual';
 
 export const CATEGORY_COLORS: Record<string, string> = {
   Moradia: '#6366f1', 'Contas da casa': '#0ea5e9', Mercado: '#10b981', Alimentação: '#f59e0b', Transporte: '#64748b',
-  Saúde: '#8b5cf6', Educação: '#4f46e5', Diversão: '#f97316', Compras: '#ec4899', Assinaturas: '#14b8a6',
+  Saúde: '#8b5cf6', Educação: '#4f46e5', 'Valor individual': '#f97316', Compras: '#ec4899', Assinaturas: '#14b8a6',
   Serviços: '#22c55e', Pets: '#a16207', Outros: '#94a3b8',
 };
 

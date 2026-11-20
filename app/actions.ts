@@ -3,6 +3,8 @@
 import { revalidatePath } from 'next/cache';
 import { db } from '@/lib/db';
 import { requireAuth } from '@/lib/session';
+import { loadData } from '@/lib/data';
+import { ruleOfThree } from '@/lib/finance';
 import { addMonthsDate, invoiceDue, invoiceMonth, isValidDate, monthOf, todayBR } from '@/lib/dates';
 import { parseBRL } from '@/lib/format';
 import { EXPENSE_CATEGORIES, INCOME_SUBTYPES } from '@/lib/categories';
@@ -279,5 +281,16 @@ export async function deleteGoal(id: number) {
   await requireAuth();
   const sql = await db();
   await sql`delete from goals where id = ${id}`;
+  refresh();
+}
+
+/** Faz (ou refaz) a divisão do mês com o saldo de agora; o valor fica fixo até o fim do mês */
+export async function makeDivision() {
+  await requireAuth();
+  const d = await loadData();
+  const r = ruleOfThree(d);
+  const sql = await db();
+  await sql`insert into settings (key, value) values (${`divisao:${monthOf(d.today)}`}, ${String(r.basePrevia)})
+            on conflict (key) do update set value = excluded.value`;
   refresh();
 }

@@ -23,7 +23,7 @@ export default async function Previsao({ searchParams }: { searchParams: { regra
         </div>
       </div>
 
-      {regra && <p className="note" style={{ margin: 0 }}>Simulando: todo mês ⅓ da sobra é gasto em diversão, ⅓ é guardado e ⅓ adianta contas.</p>}
+      {regra && <p className="note" style={{ margin: 0 }}>Simulando: todo mês ⅓ da sobra vai para os valores individuais, ⅓ é guardado e ⅓ adianta contas.</p>}
 
       <div className="panel">
         <div className="list">

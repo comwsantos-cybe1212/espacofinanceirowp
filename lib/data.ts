@@ -1,6 +1,6 @@
 import 'server-only';
 import { db } from './db';
-import { monthOf, todayBR } from './dates';
+import { todayBR } from './dates';
 import type { AppData, Goal, Profile, SavingMove, Tx } from './types';
 
 export async function loadData(): Promise<AppData> {
@@ -15,15 +15,16 @@ export async function loadData(): Promise<AppData> {
   ]);
   const opening = Number(settings.find((s) => s.key === 'saldo_inicial')?.value ?? 0);
   const today = todayBR();
-  const flag = (k: string) => settings.some((s) => s.key === `${k}:${monthOf(today)}` && s.value === '1');
+  const map = Object.fromEntries(settings.map((s) => [s.key, s.value]));
+  const divisoes = Object.fromEntries(settings.filter((s) => s.key.startsWith('divisao:')).map((s) => [s.key.slice(8), Number(s.value) || 0]));
   return {
     profiles: [...profiles],
     goals: [...goals],
     txs: [...txs],
     savings: [...savings],
     openingBalance: Number.isFinite(opening) ? opening : 0,
-    semGuardar: flag('sem_guardar'),
-    semAdiantar: flag('sem_adiantar'),
+    settings: map,
+    divisoes,
     today,
   };
 }

@@ -34,8 +34,9 @@ export type AppData = {
   txs: Tx[];
   savings: SavingMove[];
   openingBalance: number;
-  /** Opções da divisão em 3 no mês atual */
-  semGuardar: boolean;
-  semAdiantar: boolean;
+  /** Configurações salvas (saldo inicial, divisões do mês, opções da divisão) */
+  settings: Record<string, string>;
+  /** Divisões feitas: mês (YYYY-MM) → saldo que foi dividido, em centavos */
+  divisoes: Record<string, number>;
   today: string;
 };

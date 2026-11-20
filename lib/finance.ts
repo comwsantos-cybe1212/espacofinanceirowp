@@ -1,5 +1,5 @@
 import { addMonths, invoiceDue, invoiceMonth, monthOf } from './dates';
-import { FUN_CATEGORY } from './categories';
+import { INDIVIDUAL_CATEGORY } from './categories';
 import { NOS, type AppData, type Profile, type Tx } from './types';
 
 const sum = (list: Tx[]) => list.reduce((s, t) => s + t.amount, 0);
@@ -150,7 +150,7 @@ export type ProjectionRow = {
 /**
  * Mês atual: começa no saldo real de hoje, soma o que falta receber e tira o que falta pagar (incl. dívidas).
  * Meses seguintes: começam com o que sobrou do anterior + receitas − despesas ainda não pagas daquele mês.
- * Com `seguirRegra`, ao fim de cada mês com sobra: ⅓ é gasto em diversão, ⅓ vai para a economia e
+ * Com `seguirRegra`, ao fim de cada mês com sobra: ⅓ vai para os valores individuais, ⅓ para a economia e
  * ⅓ adianta contas futuras (continua no saldo porque já está contado nas despesas futuras).
  */
 export function projection(d: AppData, months = 12, seguirRegra = false): ProjectionRow[] {
@@ -188,49 +188,91 @@ export function projection(d: AppData, months = 12, seguirRegra = false): Projec
 
 /* ---------------------------------------------------------------- Regra de 3 */
 
+export type Individual = {
+  profile: Profile;
+  anterior: number; // valor individual que sobrou dos meses anteriores
+  cotaMes: number; // adicionado neste mês pela divisão
+  gastoMes: number; // gasto neste mês na categoria "Valor individual"
+  atual: number; // valor individual atual = anterior + adicionado − gasto
+};
+
 export type RuleOfThree = {
-  base: number;
+  dividido: boolean; // a divisão deste mês já foi feita?
+  saldoAtual: number;
+  reservado: number; // valores individuais de meses anteriores (já estão no saldo e não entram de novo)
+  basePrevia: number; // saldo atual − reservado: o que seria dividido agora
+  base: number; // saldo dividido neste mês (fixo depois de feita a divisão)
   terco: number; // valor de cada parte ativa
   partes: number; // 3, ou 2 quando "não guardar"/"não adiantar" neste mês
   semGuardar: boolean;
   semAdiantar: boolean;
   futuras: Tx[]; // todas as contas futuras que podem ser adiantadas
-  diversao: { profile: Profile; cota: number; usado: number; resta: number }[];
+  individuais: Individual[];
   adiantar: { cota: number; usado: number; resta: number; sugestoes: Tx[] };
   guardar: { cota: number; usado: number; resta: number };
-  cortes: Tx[]; // quando falta dinheiro: maiores gastos variáveis do mês
 };
 
+const flagOn = (d: AppData, flag: string, month: string) => d.settings[`${flag}:${month}`] === '1';
+const partesDoMes = (d: AppData, m: string) => 1 + (flagOn(d, 'sem_guardar', m) ? 0 : 1) + (flagOn(d, 'sem_adiantar', m) ? 0 : 1);
+
+/** Valor que cada pessoa recebeu da divisão de um mês */
+function cotaIndividual(d: AppData, month: string) {
+  const base = d.divisoes[month];
+  if (base === undefined || base <= 0) return 0;
+  return Math.floor(Math.floor(base / partesDoMes(d, month)) / Math.max(d.profiles.length, 1));
+}
+
+/** Gasto de uma pessoa na categoria "Valor individual" em um mês (o que é de "Nós" conta metade para cada) */
+function gastoIndividual(d: AppData, profileId: number, month: string) {
+  const n = Math.max(d.profiles.length, 1);
+  return d.txs
+    .filter((t) => t.kind === 'despesa' && t.category === INDIVIDUAL_CATEGORY && t.month === month)
+    .reduce((a, t) => a + (t.profile_id === profileId ? t.amount : !t.profile_id ? Math.round(t.amount / n) : 0), 0);
+}
+
+/** Valor individual acumulado até um mês (inclusive): soma das divisões − gastos individuais desde a primeira divisão */
+export function individualBalance(d: AppData, profileId: number, upTo: string) {
+  const meses = Object.keys(d.divisoes).sort();
+  if (!meses.length || meses[0] > upTo) return 0;
+  let total = 0;
+  for (const m of meses) if (m <= upTo) total += cotaIndividual(d, m);
+  const gastos = [...new Set(d.txs.map((t) => t.month))].filter((m) => m >= meses[0] && m <= upTo)
+    .reduce((a, m) => a + gastoIndividual(d, profileId, m), 0);
+  return total - gastos;
+}
+
 /**
- * Divisão do saldo atual em partes iguais: valor individual (÷2, um para cada), adiantar contas e guardar.
- * O que não for usado continua no saldo e entra na divisão do mês seguinte.
+ * Divisão do mês: o saldo atual (menos os valores individuais que sobraram de meses anteriores)
+ * é dividido em partes iguais — valor individual (÷2, um para cada), adiantar contas e guardar.
+ * Depois de feita, a divisão fica fixa até o fim do mês.
  */
 export function ruleOfThree(d: AppData): RuleOfThree {
   const s = summary(d);
   const cur = s.cur;
+  const prev = addMonths(cur, -1);
 
-  const diversaoMes = d.txs.filter((t) => t.kind === 'despesa' && t.category === FUN_CATEGORY && t.month === cur);
-  const adiantadoMes = d.txs.filter((t) => t.kind === 'despesa' && t.paid && t.paid_at && monthOf(t.paid_at) === cur && t.month > cur);
-  const guardadoMes = d.savings.filter((m) => monthOf(m.date) === cur).reduce((a, m) => a + m.amount, 0);
+  const anteriores = d.profiles.map((p) => ({ p, anterior: individualBalance(d, p.id, prev) }));
+  const reservado = anteriores.reduce((a, x) => a + Math.max(0, x.anterior), 0);
+  const basePrevia = Math.max(0, s.saldoAtual - reservado);
+  const dividido = d.divisoes[cur] !== undefined;
+  const base = dividido ? d.divisoes[cur] : basePrevia;
 
-  // Base = saldo atual (dinheiro na conta hoje). Somamos de volta o que a própria divisão já tirou
-  // da conta neste mês (diversão paga, contas adiantadas, valor guardado) para as partes não mudarem.
-  const base = s.saldoAtual + sum(diversaoMes.filter((t) => t.paid)) + sum(adiantadoMes) + guardadoMes;
-  // Partes ativas: valor individual sempre; guardar e adiantar podem ser desligados no mês
-  const partes = 1 + (d.semGuardar ? 0 : 1) + (d.semAdiantar ? 0 : 1);
+  const semGuardar = flagOn(d, 'sem_guardar', cur);
+  const semAdiantar = flagOn(d, 'sem_adiantar', cur);
+  const partes = partesDoMes(d, cur);
   const terco = base > 0 ? Math.floor(base / partes) : 0;
-  const cotaAdiantar = d.semAdiantar ? 0 : terco;
-  const cotaGuardar = d.semGuardar ? 0 : terco;
-
-  // Valor individual: metade da parte de diversão para cada um; diversão de "nós" desconta metade de cada
+  const cotaAdiantar = semAdiantar ? 0 : terco;
+  const cotaGuardar = semGuardar ? 0 : terco;
   const n = Math.max(d.profiles.length, 1);
-  const nosDiversao = sum(diversaoMes.filter((t) => !t.profile_id));
-  const diversao = d.profiles.map((p) => {
-    const cota = Math.floor(terco / n);
-    const usado = sum(diversaoMes.filter((t) => t.profile_id === p.id)) + Math.round(nosDiversao / n);
-    return { profile: p, cota, usado, resta: cota - usado };
+
+  const individuais = anteriores.map(({ p, anterior }) => {
+    const cotaMes = Math.floor(terco / n);
+    const gastoMes = gastoIndividual(d, p.id, cur);
+    return { profile: p, anterior, cotaMes, gastoMes, atual: anterior + (dividido ? cotaMes : 0) - gastoMes };
   });
 
+  const adiantadoMes = d.txs.filter((t) => t.kind === 'despesa' && t.paid && t.paid_at && monthOf(t.paid_at) === cur && t.month > cur);
+  const guardadoMes = d.savings.filter((m) => monthOf(m.date) === cur).reduce((a, m) => a + m.amount, 0);
   const usadoAdiantar = sum(adiantadoMes);
   const restaAdiantar = cotaAdiantar - usadoAdiantar;
 
@@ -242,28 +284,15 @@ export function ruleOfThree(d: AppData): RuleOfThree {
   let budget = restaAdiantar;
   for (const t of [...parcelas, ...outras]) {
     if (sugestoes.length >= 5) break;
-    if (t.amount <= budget) {
-      sugestoes.push(t);
-      budget -= t.amount;
-    }
+    if (t.amount <= budget) { sugestoes.push(t); budget -= t.amount; }
   }
 
-  const cortes = base > 0 ? [] : d.txs
-    .filter((t) => t.kind === 'despesa' && t.recurrence === 'variavel' && t.month === cur)
-    .sort((a, b) => b.amount - a.amount)
-    .slice(0, 5);
-
   return {
-    base,
-    terco,
-    partes,
-    semGuardar: d.semGuardar,
-    semAdiantar: d.semAdiantar,
+    dividido, saldoAtual: s.saldoAtual, reservado, basePrevia, base, terco, partes, semGuardar, semAdiantar,
     futuras: [...futuras].sort((a, b) => a.due_date.localeCompare(b.due_date) || a.description.localeCompare(b.description)),
-    diversao,
+    individuais,
     adiantar: { cota: cotaAdiantar, usado: usadoAdiantar, resta: restaAdiantar, sugestoes },
     guardar: { cota: cotaGuardar, usado: guardadoMes, resta: cotaGuardar - guardadoMes },
-    cortes,
   };
 }
 

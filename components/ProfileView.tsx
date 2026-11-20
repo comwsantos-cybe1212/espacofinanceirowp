@@ -6,10 +6,10 @@ import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
 import { CATEGORY_COLORS, categoryEmoji } from '@/lib/categories';
 import { monthLabel } from '@/lib/dates';
 import { brl } from '@/lib/format';
-import type { ProfileSummary } from '@/lib/finance';
+import type { Individual, ProfileSummary } from '@/lib/finance';
 import Avatar from './Avatar';
 
-type Extra = { cota: number; usado: number; resta: number } | null;
+type Extra = (Individual & { dividido: boolean }) | null;
 
 /** Resultado individual: ganhos, gastos (com metade do que é de "Nós") e no que mais gastou */
 export function ProfileView({ s, individual }: { s: ProfileSummary; individual?: Extra }) {
@@ -29,9 +29,15 @@ export function ProfileView({ s, individual }: { s: ProfileSummary; individual?:
       </div>
       {individual && (
         <div className="third" style={{ background: 'var(--accent-soft)' }}>
-          <div className="third-head">🎉 Valor individual <span className="third-value">{brl(individual.cota)}</span></div>
-          <div className={`bar ${individual.usado > individual.cota ? 'over' : ''}`}><div style={{ width: `${individual.cota > 0 ? Math.min(100, (individual.usado / individual.cota) * 100) : 0}%` }} /></div>
-          <span className="small muted">Usou {brl(individual.usado)} · {individual.resta >= 0 ? <>pode gastar <strong className="pos">{brl(individual.resta)}</strong></> : <strong className="neg">passou {brl(-individual.resta)}</strong>}</span>
+          <div className="third-head">🙋 Valor individual atual <span className={`third-value ${individual.atual < 0 ? 'neg' : ''}`}>{brl(individual.atual)}</span></div>
+          <span className="small muted">
+            {individual.dividido
+              ? <>Este mês foi adicionado <strong className="pos">{brl(individual.cotaMes)}</strong>.</>
+              : <>A divisão deste mês ainda não foi feita (vai adicionar {brl(individual.cotaMes)}).</>}
+            {individual.anterior !== 0 && <> Vindo dos meses anteriores: {brl(individual.anterior)}.</>}
+            {individual.gastoMes > 0 && <> Gasto este mês: {brl(individual.gastoMes)}.</>}
+          </span>
+          <span className="faint small">Pode gastar sem consultar o outro. O que não gastar continua aqui no mês seguinte.</span>
         </div>
       )}
 

@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { setRuleFlag } from '@/app/actions';
+import { makeDivision, setRuleFlag } from '@/app/actions';
 import ActionButton from '@/components/ActionButton';
 import Avatar from '@/components/Avatar';
 import Fold from '@/components/Fold';
@@ -42,11 +42,10 @@ export default async function Inicio() {
   const gastoMes = sum(d.txs.filter((t) => t.kind === 'despesa' && t.paid && t.month === s.cur));
   const totalEntra = sum(d.txs.filter((t) => t.kind === 'receita' && t.month === s.cur));
   const totalSai = sum(d.txs.filter((t) => t.kind === 'despesa' && t.month === s.cur));
-  const porPessoa = rule.diversao[0]?.cota ?? 0;
-  const jaUsado = rule.base - s.saldoAtual; // o que a divisão já tirou da conta neste mês (diversão paga, adiantado, guardado)
+  const porPessoa = rule.individuais[0]?.cotaMes ?? 0;
   const perfis = d.profiles.map((p) => ({
     s: profileSummary(d, p, s.cur),
-    individual: rule.diversao.find((x) => x.profile.id === p.id) ?? null,
+    individual: (() => { const f = rule.individuais.find((x) => x.profile.id === p.id); return f ? { ...f, dividido: rule.dividido } : null; })(),
   }));
   const maxGasto = Math.max(1, ...perfis.map((p) => p.s.gastos));
   const partes = rule.partes === 3 ? '÷ 3' : rule.partes === 2 ? '÷ 2' : 'tudo no valor individual';
@@ -101,29 +100,48 @@ export default async function Inicio() {
 
       <Fold id="divisao" title="Divisão da sobra" defaultOpen
         right={rule.base > 0 ? <span className="muted small"><strong className="pos">{brl(rule.base)}</strong> {partes} = <strong>{brl(rule.terco)}</strong></span> : undefined}>
-        {rule.base > 0 ? (
-          <div className="stack" style={{ gap: 12 }}>
+        <div className="stack" style={{ gap: 12 }}>
           <div className="split-note">
-            {jaUsado > 0
-              ? <>Saldo atual <strong>{brl(s.saldoAtual)}</strong> + <strong>{brl(jaUsado)}</strong> já usados da divisão este mês = <strong>{brl(rule.base)}</strong>, </>
-              : <>Saldo atual de <strong>{brl(rule.base)}</strong> </>}
-            dividido em {rule.partes} parte(s) de <strong>{brl(rule.terco)}</strong>
-            {rule.partes > 1 && <>: {['valor individual', !rule.semAdiantar && 'adiantar contas', !rule.semGuardar && 'guardar'].filter(Boolean).join(', ')}</>}.
-            {' '}O valor individual é dividido por 2: <strong>{brl(porPessoa)}</strong> para cada um.
+            {rule.dividido ? <>Divisão de {monthLabel(s.cur, true).toLowerCase()}: </> : <>Prévia da divisão com o saldo de hoje: </>}
+            {rule.reservado > 0 && !rule.dividido
+              ? <>saldo atual <strong>{brl(rule.saldoAtual)}</strong> − <strong>{brl(rule.reservado)}</strong> dos valores individuais que sobraram = </>
+              : null}
+            <strong>{brl(rule.base)}</strong> ÷ {rule.partes} = <strong>{brl(rule.terco)}</strong> por parte
+            {rule.partes > 1 && <> ({['valor individual', !rule.semAdiantar && 'adiantar contas', !rule.semGuardar && 'guardar'].filter(Boolean).join(', ')})</>}.
+            {' '}Valor individual ÷ 2 = <strong>{brl(porPessoa)}</strong> para cada um.
             {s.aPagar + s.totalDividas > 0 && <> Lembrete: ainda faltam pagar <strong className="neg">{brl(s.aPagar + s.totalDividas)}</strong> este mês.</>}
           </div>
+          {!rule.dividido ? (
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+              <ActionButton action={makeDivision} className="btn btn-primary"
+                confirm={`Fazer a divisão de ${monthLabel(s.cur, true).toLowerCase()} com ${brl(rule.base)}? O valor fica fixo até o fim do mês e cada um recebe ${brl(porPessoa)} no valor individual.`}>
+                Fazer a divisão deste mês
+              </ActionButton>
+              <span className="faint small">Faça depois que o salário entrar. O valor fica fixo até o fim do mês.</span>
+            </div>
+          ) : (
+            <ActionButton action={makeDivision} className="btn btn-sm btn-ghost link-btn"
+              confirm={`Refazer a divisão com o saldo de agora (${brl(rule.basePrevia)})?`}>
+              Refazer a divisão com o saldo de agora
+            </ActionButton>
+          )}
+
+          {(
           <div className="grid grid-3">
             <div className="third">
-              <div className="third-head"><span>🎉 Valor individual</span><span className="third-value">{brl(rule.terco)}</span></div>
+              <div className="third-head"><span>🙋 Valores individuais</span><span className="third-value">{brl(rule.terco)}</span></div>
               <span className="faint small" style={{ marginTop: -6 }}>{brl(rule.terco)} ÷ 2 = {brl(porPessoa)} para cada um gastar sem consultar o outro</span>
-              {rule.diversao.map(({ profile, cota, usado, resta }) => (
-                <div key={profile.id} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <Avatar profile={profile} size={22} />
-                    <span className="small" style={{ flex: 1, fontWeight: 700 }}>{profile.name} · {brl(cota)}</span>
-                    <span className={`small num ${resta < 0 ? 'neg' : 'muted'}`}>{resta < 0 ? `passou ${brl(-resta)}` : `resta ${brl(resta)}`}</span>
+              {rule.individuais.map((x) => (
+                <div key={x.profile.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Avatar profile={x.profile} size={26} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div className="small" style={{ fontWeight: 700 }}>{x.profile.name}</div>
+                    <div className="faint small">{rule.dividido ? `este mês foi adicionado ${brl(x.cotaMes)}` : `vai receber ${brl(x.cotaMes)}`}{x.gastoMes > 0 && ` · gastou ${brl(x.gastoMes)}`}</div>
                   </div>
-                  <Meter used={usado} total={cota} />
+                  <div style={{ textAlign: 'right' }}>
+                    <div className={`num ${x.atual < 0 ? 'neg' : ''}`} style={{ fontWeight: 800 }}>{brl(x.atual)}</div>
+                    <div className="faint small">valor atual</div>
+                  </div>
                 </div>
               ))}
             </div>
@@ -132,7 +150,7 @@ export default async function Inicio() {
               <div className="third-head"><span>📅 Adiantar contas</span><span className="third-value">{rule.semAdiantar ? '—' : brl(rule.terco)}</span></div>
               {rule.semAdiantar ? (
                 <>
-                  <span className="small muted">Sem adiantar contas este mês. A sobra fica entre guardar e o valor individual.</span>
+                  <span className="small muted">Sem adiantar contas este mês. O saldo fica entre guardar e os valores individuais.</span>
                   <ActionButton action={setRuleFlag.bind(null, 'sem_adiantar', false)} className="btn btn-sm">Voltar a adiantar</ActionButton>
                 </>
               ) : (
@@ -141,7 +159,7 @@ export default async function Inicio() {
                   <span className="small muted">Adiantado {brl(rule.adiantar.usado)} · resta {brl(Math.max(0, rule.adiantar.resta))}</span>
                   <AdvancePicker suggestions={rule.adiantar.sugestoes} all={rule.futuras} />
                   <ActionButton action={setRuleFlag.bind(null, 'sem_adiantar', true)} className="btn btn-sm btn-ghost link-btn"
-                    confirm="Não adiantar contas este mês? A sobra passa a ser dividida entre guardar e o valor individual.">
+                    confirm="Não adiantar contas este mês? O saldo passa a ser dividido entre guardar e os valores individuais.">
                     Não adiantar contas este mês
                   </ActionButton>
                 </>
@@ -152,7 +170,7 @@ export default async function Inicio() {
               <div className="third-head"><span>💰 Guardar</span><span className="third-value">{rule.semGuardar ? '—' : brl(rule.terco)}</span></div>
               {rule.semGuardar ? (
                 <>
-                  <span className="small muted">Sem economizar este mês. A sobra fica entre adiantar contas e o valor individual.</span>
+                  <span className="small muted">Sem economizar este mês. O saldo fica entre adiantar contas e os valores individuais.</span>
                   <ActionButton action={setRuleFlag.bind(null, 'sem_guardar', false)} className="btn btn-sm">Voltar a economizar</ActionButton>
                 </>
               ) : (
@@ -163,20 +181,16 @@ export default async function Inicio() {
                     ? <SaveToBox cents={rule.guardar.resta} saldo={s.saldoAtual} />
                     : <span className="small pos" style={{ fontWeight: 700 }}>✓ Valor do mês guardado na caixinha</span>}
                   <ActionButton action={setRuleFlag.bind(null, 'sem_guardar', true)} className="btn btn-sm btn-ghost link-btn"
-                    confirm="Não economizar este mês? A sobra passa a ser dividida entre adiantar contas e o valor individual.">
+                    confirm="Não economizar este mês? O saldo passa a ser dividido entre adiantar contas e os valores individuais.">
                     Não economizar este mês
                   </ActionButton>
                 </>
               )}
             </div>
           </div>
-          </div>
-        ) : (
-          <p style={{ margin: 0 }}>
-            <strong className="neg">Saldo atual zerado ou negativo ({brl(rule.base)}).</strong> Não há valor para dividir agora.
-            {rule.cortes.length > 0 && <> Maior gasto variável: <strong>{rule.cortes[0].description}</strong> ({brl(rule.cortes[0].amount)}).</>}
-          </p>
-        )}
+          )}
+          {rule.base <= 0 && <p style={{ margin: 0 }} className="small"><strong className="neg">Não há saldo novo para dividir agora.</strong> Os valores individuais que sobraram continuam disponíveis.</p>}
+        </div>
       </Fold>
 
       <Fold id="proximos" title="Próximos meses" right={<Link href="/projecao" className="link">Ver previsão</Link>}>
