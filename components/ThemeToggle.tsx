@@ -20,7 +20,7 @@ export default function ThemeToggle({ withLabel }: { withLabel?: boolean }) {
 
   const label = theme === 'light' ? 'Mudar para modo escuro' : 'Mudar para modo claro';
   return (
-    <button type="button" className={withLabel ? 'btn' : 'btn btn-ghost icon-btn'} onClick={toggle} title={label} aria-label={label}>
+    <button type="button" className={withLabel ? 'btn' : 'btn icon-btn'} onClick={toggle} title={label} aria-label={label}>
       <span aria-hidden style={{ fontSize: 17 }}>{theme === 'light' ? '🌙' : '☀️'}</span>
       {withLabel && (theme === 'light' ? 'Modo escuro' : 'Modo claro')}
     </button>

@@ -1,17 +1,20 @@
 import { payInvoice, payNow } from '@/app/actions';
 import ActionButton from '@/components/ActionButton';
+import Avatar from '@/components/Avatar';
+import { IconCard, IconChevronDown, IconRepeat } from '@/components/Icons';
 import TxRow from '@/components/TxRow';
 import { addMonths, CARD_CLOSE_DAY, CARD_DUE_DAY, dateLabel, monthLabel } from '@/lib/dates';
 import { freeOfInstallmentsAfter, installmentPlans, invoices, openInvoiceMonth } from '@/lib/finance';
 import { brl } from '@/lib/format';
 import { loadData } from '@/lib/data';
+import { NOS, type Tx } from '@/lib/types';
 
 const STATUS = {
   paga: { label: 'Paga', cls: 'green' },
   vencida: { label: 'Vencida', cls: 'red' },
-  fechada: { label: 'Fechada', cls: 'amber' },
-  aberta: { label: 'Aberta', cls: 'cyan' },
-  futura: { label: 'Prevista', cls: 'violet' },
+  fechada: { label: 'Fechada · pagar', cls: '' },
+  aberta: { label: 'Em aberto', cls: '' },
+  futura: { label: 'Prevista', cls: '' },
 } as const;
 
 export default async function Cartao() {
@@ -21,69 +24,108 @@ export default async function Cartao() {
   const visible = invoices(d).filter((i) => i.month >= addMonths(openMonth, -1) || i.open > 0);
   const plans = installmentPlans(d);
   const livre = freeOfInstallmentsAfter(d);
+  const name = (id: number | null) => d.profiles.find((p) => p.id === id)?.name ?? NOS.name;
+
+  // Despesas fixas no cartão (uma por série, valor do próximo mês em aberto)
+  const fixedMap = new Map<string, Tx>();
+  for (const t of d.txs) {
+    if (t.payment === 'cartao' && t.recurrence === 'fixa' && !t.paid && t.month >= openMonth) {
+      const key = t.group_id ?? String(t.id);
+      if (!fixedMap.has(key)) fixedMap.set(key, t);
+    }
+  }
+  const fixed = [...fixedMap.values()];
 
   return (
     <div className="stack">
-      <div className="page-head" style={{ marginBottom: 0 }}>
+      <div className="page-head">
         <div>
-          <h1 className="page-title">Cartão de crédito</h1>
-          <p className="page-sub">Fecha dia {CARD_CLOSE_DAY}, vence dia {CARD_DUE_DAY}. Compras a partir do dia {CARD_CLOSE_DAY + 1} vão para a próxima fatura.</p>
+          <h1 className="page-title">Cartão</h1>
+          <p className="page-sub">Fecha dia {CARD_CLOSE_DAY} e vence dia {CARD_DUE_DAY}. Compras a partir do dia {CARD_CLOSE_DAY + 1} vão para a próxima fatura.</p>
         </div>
       </div>
 
-      <div className="panel">
-        <div className="panel-head">
-          <h2 className="section-title">Faturas</h2>
-          {livre && <span className="muted small">Livre de parcelas em {monthLabel(addMonths(livre, 1))}</span>}
-        </div>
-        <div className="list">
-          {visible.map((inv) => (
-            <details key={inv.month} className="row" style={{ display: 'block' }}>
-              <summary style={{ cursor: 'pointer', listStyle: 'none', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                <strong>{monthLabel(inv.month, true)}</strong>
-                <span className={`chip ${STATUS[inv.status].cls}`}>{STATUS[inv.status].label}</span>
-                <span className="faint small">vence {dateLabel(inv.due)}</span>
-                <span style={{ marginLeft: 'auto' }} className="row-amount">{brl(inv.status === 'paga' ? inv.total : inv.open)}</span>
-                {inv.open > 0 && inv.month <= openMonth && (
-                  <ActionButton action={payInvoice.bind(null, inv.month)} className="btn btn-sm btn-primary" confirm={`Marcar a fatura de ${monthLabel(inv.month, true)} (${brl(inv.open)}) como paga?`}>
-                    Pagar
-                  </ActionButton>
-                )}
+      <div className="section-label"><span className="ico"><IconCard /></span>Faturas{livre && <span className="faint" style={{ textTransform: 'none', letterSpacing: 0, fontWeight: 600 }}> · livre de parcelas em {monthLabel(addMonths(livre, 1))}</span>}</div>
+      <div className="stack" style={{ gap: 12 }}>
+        {visible.map((inv) => {
+          const pago = inv.total - inv.open;
+          const st = STATUS[inv.status];
+          return (
+            <details key={inv.month} className="invoice" open={inv.status === 'vencida'}>
+              <summary>
+                <div>
+                  <div className="invoice-title">{monthLabel(inv.month, true)}</div>
+                  <div className="invoice-sub">{inv.items.length} compra(s) · vence {dateLabel(inv.due)}</div>
+                </div>
+                <div className="invoice-nums">
+                  <div><small>Total</small><b>{brl(inv.total)}</b></div>
+                  <div><small>Pago</small><b>{brl(pago)}</b></div>
+                  <div><small>Restante</small><b>{brl(inv.open)}</b></div>
+                  <span className={`invoice-pill ${st.cls}`}>{st.label}</span>
+                  {inv.open > 0 && inv.month <= openMonth && (
+                    <ActionButton action={payInvoice.bind(null, inv.month)} className="btn btn-sm btn-pay" confirm={`Marcar a fatura de ${monthLabel(inv.month, true)} (${brl(inv.open)}) como paga?`}>
+                      Pagar
+                    </ActionButton>
+                  )}
+                  <span className="chev"><IconChevronDown /></span>
+                </div>
               </summary>
-              <div className="list" style={{ marginTop: 8, paddingLeft: 4 }}>
-                {inv.items.length ? inv.items.map((t) => <TxRow key={t.id} t={t} profiles={d.profiles} today={d.today} />) : <div className="empty">Fatura vazia.</div>}
+              <div className="invoice-body">
+                <div className="list">
+                  {inv.items.length ? inv.items.map((t) => <TxRow key={t.id} t={t} profiles={d.profiles} today={d.today} />) : <div className="empty">Fatura vazia.</div>}
+                </div>
               </div>
             </details>
-          ))}
-        </div>
-        <p className="faint small" style={{ marginBottom: 0 }}>Toque numa fatura para ver as compras.</p>
+          );
+        })}
       </div>
 
-      <div className="panel">
-        <div className="panel-head">
-          <h2 className="section-title">Parcelamentos</h2>
-          {plans.length > 0 && <span className="muted small">{brl(plans.reduce((a, p) => a + p.restante, 0))} a pagar</span>}
-        </div>
-        {plans.length === 0 ? <div className="empty">Nenhum parcelamento.</div> : (
-          <div className="list">
-            {plans.map((p) => (
-              <div className="row" key={p.group}>
-                <div className="row-main">
-                  <div className="row-title">{p.description}</div>
-                  <div className="row-meta">{brl(p.parcela)}/mês · <strong style={{ color: 'var(--text)' }}>faltam {p.faltam}</strong> · termina em {monthLabel(p.ultimoMes)}</div>
-                  <div className="bar" style={{ marginTop: 6 }}><div style={{ width: `${(p.pagas / p.totalParcelas) * 100}%` }} /></div>
+      <div className="section-label"><span className="ico"><IconCard /></span>Compras parceladas</div>
+      {plans.length === 0 ? <div className="panel empty">Nenhum parcelamento em andamento.</div> : (
+        <div className="grid grid-2">
+          {plans.map((p) => (
+            <div className="panel plan-card" key={p.group}>
+              <div className="plan-top">
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center', minWidth: 0 }}>
+                  <Avatar profile={d.profiles.find((x) => x.id === p.profile_id)} size={34} />
+                  <div style={{ minWidth: 0 }}>
+                    <div className="row-title" style={{ fontSize: 16 }}>{p.description}</div>
+                    <div className="small muted">{brl(p.total)} · {p.totalParcelas}x de {brl(p.parcela)} · {name(p.profile_id)}</div>
+                  </div>
                 </div>
-                {p.ultimaId && (
-                  <ActionButton action={payNow.bind(null, p.ultimaId)} className="btn btn-sm" title="Adiantar a última parcela"
-                    confirm={`Adiantar a última parcela de "${p.description}" (${brl(p.parcela)})? Isso encurta o parcelamento em 1 mês.`}>
-                    Adiantar
-                  </ActionButton>
-                )}
+                <span className="chip violet">Parcela {p.pagas + 1} de {p.totalParcelas}</span>
               </div>
-            ))}
-          </div>
-        )}
-      </div>
+              <div className="bar"><div style={{ width: `${(p.pagas / p.totalParcelas) * 100}%` }} /></div>
+              <div className="plan-foot"><span>{p.pagas} paga(s)</span><strong style={{ color: 'var(--text)' }}>faltam {p.faltam} · {brl(p.restante)}</strong></div>
+              <div className="plan-foot">
+                <span>Compra: {p.purchase_date ? `${dateLabel(p.purchase_date)}/${p.purchase_date.slice(0, 4)}` : '—'}</span>
+                <span>Última: {monthLabel(p.ultimoMes)}</span>
+              </div>
+              {p.ultimaId && (
+                <ActionButton action={payNow.bind(null, p.ultimaId)} className="btn btn-sm" title="Adiantar a última parcela"
+                  confirm={`Adiantar a última parcela de "${p.description}" (${brl(p.parcela)})? Isso encurta o parcelamento em 1 mês.`}>
+                  Adiantar última parcela
+                </ActionButton>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="section-label"><span className="ico"><IconRepeat /></span>Despesas fixas no cartão</div>
+      {fixed.length === 0 ? <div className="panel empty">Nenhuma despesa fixa no cartão.</div> : (
+        <div className="grid grid-3">
+          {fixed.map((t) => (
+            <div className="panel fixed-card" key={t.id}>
+              <div style={{ minWidth: 0 }}>
+                <div className="row-title">{t.description}</div>
+                <div className="small muted">{name(t.profile_id)} · todo mês</div>
+              </div>
+              <div className="row-amount" style={{ fontSize: 17 }}>{brl(t.amount)}</div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -3,17 +3,19 @@ import { payNow } from '@/app/actions';
 import ActionButton from '@/components/ActionButton';
 import Avatar from '@/components/Avatar';
 import { QuickSave } from '@/components/Forms';
+import { IconAlert, IconArrowDown, IconArrowUp, IconCalendar, IconPiggy, IconTrendDown, IconWallet } from '@/components/Icons';
 import TxRow from '@/components/TxRow';
 import { addMonths, dateLabel, monthLabel } from '@/lib/dates';
-import { currentInvoice, freeOfInstallmentsAfter, monthTotals, projection, ruleOfThree, spendingByProfile, summary } from '@/lib/finance';
+import { currentInvoice, freeOfInstallmentsAfter, goalsPlan, monthTotals, projection, ruleOfThree, spendingByProfile, summary } from '@/lib/finance';
 import { brl } from '@/lib/format';
 import { loadData } from '@/lib/data';
+import { NOS } from '@/lib/types';
 
-function Tile({ label, value, hint, color, tone }: { label: string; value: number; hint?: React.ReactNode; color: string; tone?: string }) {
+function Tile({ label, value, hint, color, icon }: { label: string; value: number; hint?: React.ReactNode; color: string; icon: React.ReactNode }) {
   return (
-    <div className="panel tile">
-      <div className="tile-label"><span className="dot" style={{ ['--c' as string]: color }} />{label}</div>
-      <div className={`tile-value ${tone ?? ''}`}>{brl(value)}</div>
+    <div className="panel tile" style={{ ['--c' as string]: color }}>
+      <div className="tile-label"><span className="tile-ico">{icon}</span>{label}</div>
+      <div className="tile-value">{brl(value)}</div>
       {hint && <div className="tile-hint">{hint}</div>}
     </div>
   );
@@ -36,38 +38,46 @@ export default async function Inicio() {
   const diff = anterior.despesas > 0 ? Math.round(((este.despesas - anterior.despesas) / anterior.despesas) * 100) : null;
   const { totals } = spendingByProfile(d, s.cur);
   const maxGasto = Math.max(1, ...totals.map((t) => t.despesas));
+  const metas = goalsPlan(d);
 
   return (
     <div className="stack">
-      <div className="page-head" style={{ marginBottom: 0 }}>
+      <div className="page-head">
         <div>
-          <h1 className="page-title">{monthLabel(s.cur, true)}</h1>
-          <p className="page-sub">Hoje, {dateLabel(d.today)}</p>
+          <h1 className="page-title">Início</h1>
+          <p className="page-sub">Sua jornada financeira em órbita · {monthLabel(s.cur, true)}, hoje {dateLabel(d.today)}</p>
         </div>
       </div>
 
-      {/* Saldo */}
-      <div className="panel hero">
-        <div className="hero-label">Saldo atual</div>
-        <div className={`hero-value ${s.saldoAtual < 0 ? 'neg' : ''}`}>{brl(s.saldoAtual)}</div>
-        <div className="muted small">
-          Previsão para o fim do mês: <strong className={s.saldoPrevisto < 0 ? 'neg' : 'pos'}>{brl(s.saldoPrevisto)}</strong>
-        </div>
+      <div className="chips">
+        {d.profiles.map((p) => (
+          <Link key={p.id} href="/perfis" className="profile-chip">
+            <Avatar profile={p} size={42} />
+            <div><strong>{p.name}</strong><span>ver gastos do mês</span></div>
+          </Link>
+        ))}
       </div>
 
-      <div className="grid grid-4">
-        <Tile label="A receber" value={s.aReceber} color="var(--green)" hint="até o fim do mês" />
-        <Tile label="A pagar" value={s.aPagar + s.totalDividas} color="var(--amber)"
-          hint={s.totalDividas > 0 ? <span className="neg">{brl(s.totalDividas)} atrasado</span> : 'até o fim do mês'} />
-        <Tile label="Gastos do mês" value={este.despesas} color="var(--red)"
-          hint={diff === null ? 'sem comparação' : `${diff > 0 ? '▲' : '▼'} ${Math.abs(diff)}% vs ${monthLabel(addMonths(s.cur, -1))}`} />
-        <Tile label="Economia" value={s.savingsTotal} color="var(--accent-2)" hint="guardado" />
+      <div className="section-label"><span className="ico"><IconWallet /></span>Atual</div>
+      <div className="grid grid-3 tiles">
+        <Tile label="Saldo atual" value={s.saldoAtual} color={s.saldoAtual < 0 ? 'var(--red)' : 'var(--green)'} icon={<IconWallet />} hint="Dinheiro na conta hoje" />
+        <Tile label="Gastos do mês" value={este.despesas} color="var(--red)" icon={<IconTrendDown />}
+          hint={diff === null ? 'Tudo que saiu ou vai sair este mês' : `${diff > 0 ? '▲' : '▼'} ${Math.abs(diff)}% em relação a ${monthLabel(addMonths(s.cur, -1))}`} />
+        <Tile label="Economia" value={s.savingsTotal} color="var(--blue)" icon={<IconPiggy />} hint="Guardado, separado do saldo" />
+      </div>
+
+      <div className="section-label"><span className="ico" style={{ background: 'color-mix(in srgb, var(--pink) 14%, var(--surface))', color: 'var(--pink)' }}><IconCalendar /></span>Previsto</div>
+      <div className="grid grid-auto tiles">
+        <Tile label="Saldo no fim do mês" value={s.saldoPrevisto} color={s.saldoPrevisto < 0 ? 'var(--red)' : 'var(--green)'} icon={<IconWallet />} hint="Atual + a receber − a pagar" />
+        <Tile label="A receber" value={s.aReceber} color="var(--text)" icon={<IconArrowUp />} hint="Até o fim do mês" />
+        <Tile label="A pagar" value={s.aPagar} color="var(--red)" icon={<IconArrowDown />} hint="Até o fim do mês" />
+        {s.totalDividas > 0 && <Tile label="Contas atrasadas" value={s.totalDividas} color="var(--red)" icon={<IconAlert />} hint={`${s.dividas.length} conta(s) de meses anteriores`} />}
       </div>
 
       {s.dividas.length > 0 && (
-        <details className="alert" style={{ display: 'block' }}>
+        <details className="alert">
           <summary style={{ cursor: 'pointer', listStyle: 'none' }}>
-            <strong className="neg">⚠ {s.dividas.length} conta(s) atrasada(s) · {brl(s.totalDividas)}</strong> <span className="link">ver</span>
+            <strong className="neg">⚠ {s.dividas.length} conta(s) atrasada(s) · {brl(s.totalDividas)}</strong> <span className="link">ver e pagar</span>
           </summary>
           <div className="list" style={{ marginTop: 10 }}>{s.dividas.map((t) => <TxRow key={t.id} t={t} profiles={d.profiles} today={d.today} />)}</div>
         </details>
@@ -77,18 +87,19 @@ export default async function Inicio() {
       <div className="panel">
         <div className="panel-head">
           <h2 className="section-title">Divisão da sobra</h2>
-          {rule.base > 0 && <span className="muted small">Sobra do mês: <strong className="pos">{brl(rule.base)}</strong></span>}
+          {rule.base > 0 && <span className="muted small">Sobra do mês: <strong className="pos">{brl(rule.base)}</strong> · ⅓ para cada</span>}
         </div>
 
         {rule.base > 0 ? (
           <div className="grid grid-3">
             <div className="third">
-              <div className="third-head"><span>🎉 Valor individual<div className="faint small" style={{ fontWeight: 400 }}>diversão, sem consultar o outro</div></span><span className="third-value">{brl(rule.terco)}</span></div>
+              <div className="third-head"><span>🎉 Valor individual</span><span className="third-value">{brl(rule.terco)}</span></div>
+              <span className="faint small" style={{ marginTop: -6 }}>diversão, cada um gasta sem consultar o outro</span>
               {rule.diversao.map(({ profile, cota, usado, resta }) => (
                 <div key={profile.id} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <Avatar profile={profile} size={20} />
-                    <span className="small" style={{ flex: 1 }}>{profile.name}</span>
+                    <Avatar profile={profile} size={22} />
+                    <span className="small" style={{ flex: 1, fontWeight: 700 }}>{profile.name}</span>
                     <span className={`small num ${resta < 0 ? 'neg' : 'muted'}`}>{resta < 0 ? `passou ${brl(-resta)}` : `resta ${brl(resta)}`}</span>
                   </div>
                   <Meter used={usado} total={cota} />
@@ -97,7 +108,7 @@ export default async function Inicio() {
             </div>
 
             <div className="third">
-              <div className="third-head">📅 Adiantar contas <span className="third-value">{brl(rule.terco)}</span></div>
+              <div className="third-head"><span>📅 Adiantar contas</span><span className="third-value">{brl(rule.terco)}</span></div>
               <Meter used={rule.adiantar.usado} total={rule.adiantar.cota} />
               <span className="small muted">Resta {brl(Math.max(0, rule.adiantar.resta))}</span>
               {rule.adiantar.sugestoes.length > 0 && (
@@ -119,7 +130,7 @@ export default async function Inicio() {
             </div>
 
             <div className="third">
-              <div className="third-head">💰 Guardar <span className="third-value">{brl(rule.terco)}</span></div>
+              <div className="third-head"><span>💰 Guardar</span><span className="third-value">{brl(rule.terco)}</span></div>
               <Meter used={rule.guardar.usado} total={rule.guardar.cota} />
               {rule.guardar.resta > 0
                 ? <><span className="small muted">Guardado: {brl(rule.guardar.usado)}</span><QuickSave cents={rule.guardar.resta} /></>
@@ -135,22 +146,45 @@ export default async function Inicio() {
       </div>
 
       <div className="grid grid-2">
-        {/* Próximos meses */}
-        <div className="panel">
-          <div className="panel-head">
-            <h2 className="section-title">Próximos meses</h2>
-            <Link href="/projecao" className="link">Ver previsão</Link>
-          </div>
-          <div className="list">
-            {proximos.map((r) => (
-              <div className="row" key={r.month}>
-                <div className="row-main">
-                  <div className="row-title">{monthLabel(r.month, true)}</div>
-                  <div className="row-meta">entra {brl(r.receitas)} · sai {brl(r.despesas)}</div>
+        <div className="stack">
+          {/* Próximos meses */}
+          <div className="panel">
+            <div className="panel-head">
+              <h2 className="section-title">Próximos meses</h2>
+              <Link href="/projecao" className="link">Ver previsão</Link>
+            </div>
+            <div className="list">
+              {proximos.map((r) => (
+                <div className="row" key={r.month}>
+                  <div className="row-main">
+                    <div className="row-title">{monthLabel(r.month, true)}</div>
+                    <div className="row-meta">entra {brl(r.receitas)} · sai {brl(r.despesas)}</div>
+                  </div>
+                  <div className={`row-amount ${r.fim < 0 ? 'neg' : 'pos'}`}>{brl(r.fim)}</div>
                 </div>
-                <div className={`row-amount ${r.fim < 0 ? 'neg' : 'pos'}`}>{brl(r.fim)}</div>
+              ))}
+            </div>
+          </div>
+
+          {/* Metas */}
+          <div className="panel">
+            <div className="panel-head">
+              <h2 className="section-title">Metas</h2>
+              <Link href="/metas" className="link">{metas.ativas.length ? 'Ver metas' : 'Criar meta'}</Link>
+            </div>
+            {metas.ativas.length === 0 ? <div className="empty" style={{ padding: 6 }}>Nenhuma meta ativa.</div> : (
+              <div className="stack" style={{ gap: 12 }}>
+                {metas.ativas.slice(0, 3).map((g) => (
+                  <div key={g.goal.id}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }} className="small">
+                      <strong>{g.goal.name}</strong>
+                      <span className="muted">{g.faltam > 0 ? <>guardar <strong style={{ color: 'var(--accent)' }}>{brl(g.porMes)}</strong>/mês</> : <span className="pos">alcançada ✓</span>}</span>
+                    </div>
+                    <div className="bar" style={{ marginTop: 6 }}><div style={{ width: `${g.pct}%` }} /></div>
+                  </div>
+                ))}
               </div>
-            ))}
+            )}
           </div>
         </div>
 
@@ -166,28 +200,26 @@ export default async function Inicio() {
                 Fatura {fatura ? monthLabel(fatura.month) : ''} · vence {fatura ? dateLabel(fatura.due) : '—'}
                 {fatura?.status === 'vencida' && <span className="chip red" style={{ marginLeft: 6 }}>vencida</span>}
               </span>
-              <span className="tile-value" style={{ margin: 0 }}>{brl(fatura?.open ?? 0)}</span>
+              <span className="row-amount" style={{ fontSize: 22 }}>{brl(fatura?.open ?? 0)}</span>
             </div>
-            <div className="faint small" style={{ marginTop: 4 }}>
-              {livre ? `Parcelas até ${monthLabel(livre)}` : 'Sem parcelamentos'}
-            </div>
+            <div className="faint small" style={{ marginTop: 4 }}>{livre ? `Parcelas até ${monthLabel(livre)}` : 'Sem parcelamentos'}</div>
           </div>
 
-          {/* Comparação entre perfis */}
+          {/* Gastos por pessoa */}
           <div className="panel">
             <div className="panel-head">
               <h2 className="section-title">Gastos de cada um</h2>
               <Link href="/perfis" className="link">Detalhes</Link>
             </div>
-            <div className="stack" style={{ gap: 10 }}>
+            <div className="stack" style={{ gap: 12 }}>
               {totals.map(({ profile, despesas }) => (
                 <div key={profile.id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <Avatar profile={profile} size={30} />
+                  <Avatar profile={profile} size={32} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }} className="small">
-                      <span>{profile.name}</span><strong className="num">{brl(despesas)}</strong>
+                      <strong>{profile.name}</strong><strong className="num">{brl(despesas)}</strong>
                     </div>
-                    <div className="bar" style={{ marginTop: 5 }}><div style={{ width: `${(despesas / maxGasto) * 100}%`, background: profile.color }} /></div>
+                    <div className="bar" style={{ marginTop: 5 }}><div style={{ width: `${(despesas / maxGasto) * 100}%`, background: profile.id === NOS.id ? NOS.color : profile.color }} /></div>
                   </div>
                 </div>
               ))}

@@ -317,3 +317,35 @@ export function personalSpending(d: AppData, profileId: number, month: string) {
     categorias: [...cats.entries()].map(([category, amount]) => ({ category, amount })).sort((a, b) => b.amount - a.amount),
   };
 }
+
+/* ---------------------------------------------------------------- Metas */
+
+function monthsBetween(from: string, to: string) {
+  const [y1, m1] = from.split('-').map(Number);
+  const [y2, m2] = to.split('-').map(Number);
+  return (y2 - y1) * 12 + (m2 - m1);
+}
+
+/**
+ * A economia guardada abastece as metas ativas por ordem de prazo.
+ * Para cada meta: já temos, faltam, meses para juntar (incluindo o atual) e quanto guardar por mês.
+ * Metas concluídas "usam" o valor delas: disponível = economia − metas concluídas.
+ */
+export function goalsPlan(d: AppData) {
+  const cur = monthOf(d.today);
+  const economia = d.savings.reduce((a, m) => a + m.amount, 0);
+  const usado = d.goals.filter((g) => g.done).reduce((a, g) => a + g.target, 0);
+  const disponivel = Math.max(0, economia - usado);
+  let pool = disponivel;
+  const ativas = d.goals.filter((g) => !g.done).map((g) => {
+    const jaTemos = Math.min(pool, g.target);
+    pool -= jaTemos;
+    const faltam = g.target - jaTemos;
+    const meses = Math.max(0, monthsBetween(cur, g.deadline) + 1);
+    const porMes = faltam > 0 ? Math.ceil(faltam / Math.max(meses, 1)) : 0;
+    return { goal: g, jaTemos, faltam, meses, porMes, vencida: meses === 0 && faltam > 0, pct: g.target ? Math.round((jaTemos / g.target) * 100) : 0 };
+  });
+  const concluidas = d.goals.filter((g) => g.done);
+  const porMesTotal = ativas.reduce((a, g) => a + g.porMes, 0);
+  return { economia, usado, disponivel, ativas, concluidas, porMesTotal };
+}

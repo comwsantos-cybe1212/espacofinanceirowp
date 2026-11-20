@@ -61,13 +61,16 @@ export async function createTransaction(_: ActionResult | null, f: FormData): Pr
     }
   }
 
+  // Parcelado: o valor pode ser informado como total ou como valor de cada parcela
+  const total = installments > 1 && str(f, 'amount_mode') === 'parcela' ? amount * installments : amount;
+
   const rows: NewRow[] = [];
   const common = { profile_id: profileId, kind, subtype, category, description, recurrence, payment };
 
   if (payment === 'cartao' && installments > 1) {
     // Parcelado: o total é dividido; a 1ª parcela segue a regra do dia 17
     const first = invoiceMonth(date);
-    split(amount, installments).forEach((value, i) => {
+    split(total, installments).forEach((value, i) => {
       const month = monthOf(addMonthsDate(`${first}-01`, i));
       rows.push({ ...common, amount: value, month, due_date: invoiceDue(month), group_id: null, inst_no: i + 1,
         inst_total: installments, purchase_date: date, paid: false, paid_at: null });
@@ -132,13 +135,14 @@ export async function deleteTransaction(id: number, scope: 'um' | 'proximos' | '
 /** Recomeçar: apaga os tipos de dados escolhidos */
 export async function clearData(_: ActionResult | null, f: FormData): Promise<ActionResult> {
   await requireAuth();
-  const what = { despesas: f.get('despesas') === 'on', receitas: f.get('receitas') === 'on', economia: f.get('economia') === 'on', saldo: f.get('saldo') === 'on' };
+  const what = { despesas: f.get('despesas') === 'on', receitas: f.get('receitas') === 'on', economia: f.get('economia') === 'on', saldo: f.get('saldo') === 'on', metas: f.get('metas') === 'on' };
   if (!Object.values(what).some(Boolean)) return { ok: false, error: 'Marque o que deseja apagar.' };
   const sql = await db();
   if (what.despesas) await sql`delete from transactions where kind = 'despesa'`;
   if (what.receitas) await sql`delete from transactions where kind = 'receita'`;
   if (what.economia) await sql`delete from savings`;
   if (what.saldo) await sql`delete from settings where key = 'saldo_inicial'`;
+  if (f.get('metas') === 'on') await sql`delete from goals`;
   refresh();
   return { ok: true };
 }
@@ -188,4 +192,36 @@ export async function updateOpeningBalance(_: ActionResult | null, f: FormData):
             on conflict (key) do update set value = excluded.value`;
   refresh();
   return { ok: true };
+}
+
+/* ----------------------------------------------------------- Metas */
+
+export async function saveGoal(_: ActionResult | null, f: FormData): Promise<ActionResult> {
+  await requireAuth();
+  const id = Number(str(f, 'id')) || null;
+  const name = str(f, 'name').slice(0, 60);
+  const target = parseBRL(str(f, 'target'));
+  const deadline = str(f, 'deadline');
+  if (!name) return { ok: false, error: 'Dê um nome à meta.' };
+  if (!Number.isFinite(target) || target <= 0) return { ok: false, error: 'Informe o valor da meta.' };
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(deadline)) return { ok: false, error: 'Informe até quando (mês/ano).' };
+  const sql = await db();
+  if (id) await sql`update goals set name = ${name}, target = ${target}, deadline = ${deadline} where id = ${id}`;
+  else await sql`insert into goals (name, target, deadline) values (${name}, ${target}, ${deadline})`;
+  refresh();
+  return { ok: true };
+}
+
+export async function toggleGoal(id: number) {
+  await requireAuth();
+  const sql = await db();
+  await sql`update goals set done = not done, done_at = case when done then null else ${todayBR()} end where id = ${id}`;
+  refresh();
+}
+
+export async function deleteGoal(id: number) {
+  await requireAuth();
+  const sql = await db();
+  await sql`delete from goals where id = ${id}`;
+  refresh();
 }

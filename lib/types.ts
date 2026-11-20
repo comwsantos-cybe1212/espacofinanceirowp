@@ -25,8 +25,11 @@ export type Tx = {
 
 export type SavingMove = { id: number; date: string; amount: number; note: string | null };
 
+export type Goal = { id: number; name: string; target: number; deadline: string; done: boolean; done_at: string | null };
+
 export type AppData = {
   profiles: Profile[];
+  goals: Goal[];
   txs: Tx[];
   savings: SavingMove[];
   openingBalance: number;

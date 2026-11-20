@@ -10,3 +10,14 @@ export const IconCheck = () => (<svg {...base}><path d="M5 12.5l4.5 4.5L19 7.5" 
 export const IconUndo = () => (<svg {...base}><path d="M9 14L4 9l5-5" /><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" /></svg>);
 export const IconTrash = () => (<svg {...base}><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" /></svg>);
 export const IconChevron = ({ left }: { left?: boolean }) => (<svg {...base} style={{ transform: left ? 'rotate(180deg)' : undefined }}><path d="M9 6l6 6-6 6" /></svg>);
+export const IconTarget = () => (<svg {...base}><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="5" /><circle cx="12" cy="12" r="1.2" /></svg>);
+export const IconWallet = () => (<svg {...base}><path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H18v3" /><rect x="3.5" y="7.5" width="17" height="12" rx="2.5" /><path d="M16 13.5h2" /></svg>);
+export const IconTrendDown = () => (<svg {...base}><path d="M3 7l6 6 4-4 8 8" /><path d="M21 12v5h-5" /></svg>);
+export const IconArrowUp = () => (<svg {...base}><path d="M7 17L17 7M9 7h8v8" /></svg>);
+export const IconArrowDown = () => (<svg {...base}><path d="M7 7l10 10M17 9v8H9" /></svg>);
+export const IconPiggy = () => (<svg {...base}><path d="M5 11a6 5 0 0 1 11-2.5h2.5l-.8 2.3c.8.6 1.3 1.4 1.3 2.2v1.5l-2 .6-1.3 2.9h-2.4l-.5-1.3h-3.6l-.5 1.3H6.3l-.9-2.6A5 5 0 0 1 5 11z" /><circle cx="15" cy="11" r=".7" /></svg>);
+export const IconCalendar = () => (<svg {...base}><rect x="3.5" y="5" width="17" height="15" rx="2.5" /><path d="M3.5 10h17M8 3v4M16 3v4" /></svg>);
+export const IconAlert = () => (<svg {...base}><path d="M12 3.5l9.5 16.5h-19z" /><path d="M12 10v4.5M12 17.2v.1" /></svg>);
+export const IconChevronDown = () => (<svg {...base} width="20" height="20"><path d="M6 9l6 6 6-6" /></svg>);
+export const IconRepeat = () => (<svg {...base}><path d="M17 2l3 3-3 3" /><path d="M4 11V9a4 4 0 0 1 4-4h12M7 22l-3-3 3-3" /><path d="M20 13v2a4 4 0 0 1-4 4H4" /></svg>);
+export const IconPencil = () => (<svg {...base}><path d="M4 20h4L19 9l-4-4L4 16z" /><path d="M13.5 6.5l4 4" /></svg>);

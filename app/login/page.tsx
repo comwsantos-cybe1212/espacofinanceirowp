@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import ThemeToggle from '@/components/ThemeToggle';
+import Mascot from '@/components/Mascot';
 
 const LENGTH = 6;
 
@@ -54,9 +55,9 @@ export default function LoginPage() {
     <main className="login">
       <div style={{ position: 'fixed', top: 12, right: 12 }}><ThemeToggle /></div>
       <div className="login-card">
-        <div className="planet" aria-hidden />
-        <h1 className="login-title">ESPAÇO FINANCEIRO</h1>
-        <p className="muted small" style={{ marginTop: 6 }}>Digite a senha para iniciar a missão</p>
+        <Mascot size={96} />
+        <h1 className="login-title">Espaço Financeiro</h1>
+        <p className="muted small" style={{ marginTop: 6 }}>Digite a senha para entrar em órbita</p>
 
         <div className={`pin-dots ${shake ? 'shake' : ''}`} aria-label={`${pin.length} de ${LENGTH} dígitos`}>
           {Array.from({ length: LENGTH }, (_, i) => <span key={i} className={i < pin.length ? 'on' : ''} />)}

@@ -21,6 +21,7 @@ function Form({ profiles, onDone }: { profiles: Profile[]; onDone: () => void })
   const [payment, setPayment] = useState<'conta' | 'cartao'>('conta');
   const [installments, setInstallments] = useState(1);
   const [amount, setAmount] = useState('');
+  const [amountMode, setAmountMode] = useState<'total' | 'parcela'>('parcela');
   const [date, setDate] = useState(todayBR());
 
   useEffect(() => { if (state?.ok) onDone(); }, [state, onDone]);
@@ -38,12 +39,15 @@ function Form({ profiles, onDone }: { profiles: Profile[]; onDone: () => void })
       parts.push(`Compra no dia ${date.slice(8)} → entra na fatura de ${monthLabel(first)} (fecha dia ${CARD_CLOSE_DAY}, vence ${CARD_DUE_DAY}/${first.slice(5)}).`);
       if (parcelado) {
         const last = addMonths(first, installments - 1);
-        parts.push(`${installments}x de ${Number.isFinite(cents) && cents > 0 ? brl(Math.floor(cents / installments)) : '—'}, última parcela em ${monthLabel(last)}.`);
+        const ok = Number.isFinite(cents) && cents > 0;
+        const parcela = amountMode === 'parcela' ? cents : Math.floor(cents / installments);
+        const total = amountMode === 'parcela' ? cents * installments : cents;
+        parts.push(`${installments}x de ${ok ? brl(parcela) : '—'} (total ${ok ? brl(total) : '—'}), última parcela em ${monthLabel(last)}.`);
       }
     }
     if (effectiveRecurrence === 'fixa') parts.push('Fixo: será repetido automaticamente nos próximos 12 meses.');
     return parts;
-  }, [amount, date, isCard, parcelado, installments, effectiveRecurrence]);
+  }, [amount, amountMode, date, isCard, parcelado, installments, effectiveRecurrence]);
 
   return (
     <form action={action} className="form-grid">
@@ -77,7 +81,7 @@ function Form({ profiles, onDone }: { profiles: Profile[]; onDone: () => void })
       </label>
 
       <label className="field">
-        <span>{parcelado ? 'Valor total da compra (R$)' : 'Valor (R$)'}</span>
+        <span>{parcelado ? (amountMode === 'parcela' ? 'Valor de cada parcela (R$)' : 'Valor total da compra (R$)') : 'Valor (R$)'}</span>
         <input className="input" name="amount" inputMode="decimal" placeholder="0,00" value={amount} onChange={(e) => setAmount(e.target.value)} required />
       </label>
 
@@ -113,6 +117,16 @@ function Form({ profiles, onDone }: { profiles: Profile[]; onDone: () => void })
             {Array.from({ length: 24 }, (_, i) => i + 1).map((n) => <option key={n} value={n}>{n === 1 ? 'À vista' : `${n}x`}</option>)}
           </select>
         </label>
+      )}
+
+      {parcelado && (
+        <div className="field full">
+          <span>O valor informado é</span>
+          <div className="segmented">
+            <label><input type="radio" name="amount_mode" value="parcela" checked={amountMode === 'parcela'} onChange={() => setAmountMode('parcela')} />De cada parcela</label>
+            <label><input type="radio" name="amount_mode" value="total" checked={amountMode === 'total'} onChange={() => setAmountMode('total')} />Total da compra</label>
+          </div>
+        </div>
       )}
 
       <div className="field full">

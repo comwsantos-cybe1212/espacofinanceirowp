@@ -128,6 +128,7 @@ export function ClearDataForm() {
       <label className="check"><input type="checkbox" name="receitas" /> Todas as receitas</label>
       <label className="check"><input type="checkbox" name="economia" /> Economia guardada</label>
       <label className="check"><input type="checkbox" name="saldo" /> Saldo inicial</label>
+      <label className="check"><input type="checkbox" name="metas" /> Metas</label>
       <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
         <Submit className="btn btn-danger">Apagar selecionados</Submit>
         {state?.ok && <span className="pos small">Apagado ✓</span>}
