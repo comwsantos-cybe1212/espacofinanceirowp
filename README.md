@@ -11,7 +11,7 @@ Controle financeiro do casal com tema espacial, modo claro e escuro.
    aceite o plano gratuito e conecte ao projeto. A Vercel cria a variável `DATABASE_URL` sozinha.
 4. **Crie a senha:** em **Settings → Environment Variables**, adicione:
    - Nome: `APP_PASSWORD`
-   - Valor: `624426`
+   - Valor: a senha de 6 números que vocês combinaram (não escreva a senha em nenhum arquivo)
 5. Vá em **Deployments → ⋯ → Redeploy**. Pronto! As tabelas são criadas automaticamente no primeiro acesso.
 
 Depois de entrar, abra **Perfis → Editar nome, foto e cor** e **⚙ Ajustes → Saldo inicial**.
