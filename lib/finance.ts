@@ -202,9 +202,8 @@ export type RuleOfThree = {
 };
 
 /**
- * Base = tudo que sobra no mês (saldo previsto) antes das ações da própria regra,
- * por isso somamos de volta o que já foi gasto em diversão, adiantado ou guardado neste mês.
- * Assim a cota fica estável durante o mês, e o que não for usado passa para o mês seguinte.
+ * Divisão do saldo atual em partes iguais: valor individual (÷2, um para cada), adiantar contas e guardar.
+ * O que não for usado continua no saldo e entra na divisão do mês seguinte.
  */
 export function ruleOfThree(d: AppData): RuleOfThree {
   const s = summary(d);
@@ -214,7 +213,9 @@ export function ruleOfThree(d: AppData): RuleOfThree {
   const adiantadoMes = d.txs.filter((t) => t.kind === 'despesa' && t.paid && t.paid_at && monthOf(t.paid_at) === cur && t.month > cur);
   const guardadoMes = d.savings.filter((m) => monthOf(m.date) === cur).reduce((a, m) => a + m.amount, 0);
 
-  const base = s.saldoPrevisto + sum(diversaoMes) + sum(adiantadoMes) + guardadoMes;
+  // Base = saldo atual (dinheiro na conta hoje). Somamos de volta o que a própria divisão já tirou
+  // da conta neste mês (diversão paga, contas adiantadas, valor guardado) para as partes não mudarem.
+  const base = s.saldoAtual + sum(diversaoMes.filter((t) => t.paid)) + sum(adiantadoMes) + guardadoMes;
   // Partes ativas: valor individual sempre; guardar e adiantar podem ser desligados no mês
   const partes = 1 + (d.semGuardar ? 0 : 1) + (d.semAdiantar ? 0 : 1);
   const terco = base > 0 ? Math.floor(base / partes) : 0;

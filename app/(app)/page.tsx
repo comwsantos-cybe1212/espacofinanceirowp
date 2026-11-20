@@ -3,6 +3,7 @@ import { setRuleFlag } from '@/app/actions';
 import ActionButton from '@/components/ActionButton';
 import Avatar from '@/components/Avatar';
 import Fold from '@/components/Fold';
+import InfoTip from '@/components/InfoTip';
 import { IconArrowDown, IconArrowUp, IconCalendar, IconCard, IconPiggy, IconTrendDown, IconWallet } from '@/components/Icons';
 import { ProfileChips } from '@/components/ProfileView';
 import { AdvancePicker, SaveToBox } from '@/components/RuleControls';
@@ -12,10 +13,10 @@ import { currentInvoice, freeOfInstallmentsAfter, goalsPlan, profileSummary, pro
 import { brl } from '@/lib/format';
 import { loadData } from '@/lib/data';
 
-function Tile({ label, value, hint, color, icon }: { label: string; value: number; hint?: React.ReactNode; color: string; icon: React.ReactNode }) {
+function Tile({ label, value, hint, color, icon, info }: { label: string; value: number; hint?: React.ReactNode; color: string; icon: React.ReactNode; info: string }) {
   return (
     <div className="panel tile" style={{ ['--c' as string]: color }}>
-      <div className="tile-label"><span className="tile-ico">{icon}</span>{label}</div>
+      <div className="tile-label"><span className="tile-ico">{icon}</span>{label}<InfoTip text={info} /></div>
       <div className="tile-value">{brl(value)}</div>
       {hint && <div className="tile-hint">{hint}</div>}
     </div>
@@ -39,12 +40,16 @@ export default async function Inicio() {
   const metas = goalsPlan(d);
   const recebidoMes = sum(d.txs.filter((t) => t.kind === 'receita' && t.paid && t.month === s.cur));
   const gastoMes = sum(d.txs.filter((t) => t.kind === 'despesa' && t.paid && t.month === s.cur));
+  const totalEntra = sum(d.txs.filter((t) => t.kind === 'receita' && t.month === s.cur));
+  const totalSai = sum(d.txs.filter((t) => t.kind === 'despesa' && t.month === s.cur));
+  const porPessoa = rule.diversao[0]?.cota ?? 0;
+  const jaUsado = rule.base - s.saldoAtual; // o que a divisão já tirou da conta neste mês (diversão paga, adiantado, guardado)
   const perfis = d.profiles.map((p) => ({
     s: profileSummary(d, p, s.cur),
     individual: rule.diversao.find((x) => x.profile.id === p.id) ?? null,
   }));
   const maxGasto = Math.max(1, ...perfis.map((p) => p.s.gastos));
-  const partes = rule.partes === 3 ? '⅓ para cada' : rule.partes === 2 ? 'metade para cada' : 'tudo para o valor individual';
+  const partes = rule.partes === 3 ? '÷ 3' : rule.partes === 2 ? '÷ 2' : 'tudo no valor individual';
 
   return (
     <div className="stack">
@@ -59,13 +64,18 @@ export default async function Inicio() {
 
       {/* O básico: sempre visível */}
       <div className="grid grid-5 tiles">
-        <Tile label="Saldo atual" value={s.saldoAtual} color={s.saldoAtual < 0 ? 'var(--red)' : 'var(--green)'} icon={<IconWallet />} hint="Dinheiro na conta hoje" />
-        <Tile label="A receber" value={s.aReceber} color="var(--blue)" icon={<IconArrowUp />} hint={`${s.receber.length} pendente(s)`} />
-        <Tile label="A pagar" value={s.aPagar + s.totalDividas} color="var(--red)" icon={<IconArrowDown />}
-          hint={s.totalDividas > 0 ? <span className="neg">inclui {brl(s.totalDividas)} atrasado</span> : `${s.pagar.length} conta(s)`} />
-        <Tile label="Economia" value={s.savingsTotal} color="var(--accent)" icon={<IconPiggy />} hint="Na caixinha" />
+        <Tile label="Saldo atual" value={s.saldoAtual} color={s.saldoAtual < 0 ? 'var(--red)' : 'var(--green)'} icon={<IconWallet />} hint="Dinheiro na conta hoje"
+          info="Quanto vocês têm na conta agora: tudo que já foi recebido menos tudo que já foi pago e o que foi para a caixinha." />
+        <Tile label="Falta receber" value={s.aReceber} color="var(--blue)" icon={<IconArrowUp />} hint="este mês"
+          info="Receitas deste mês que ainda não entraram na conta (status Prevista)." />
+        <Tile label="Falta pagar" value={s.aPagar + s.totalDividas} color="var(--red)" icon={<IconArrowDown />}
+          hint={s.totalDividas > 0 ? <span className="neg">este mês · inclui {brl(s.totalDividas)} atrasado</span> : 'este mês'}
+          info="Contas deste mês que ainda não foram pagas, incluindo a fatura do cartão e contas atrasadas de meses anteriores." />
+        <Tile label="Economia" value={s.savingsTotal} color="var(--accent)" icon={<IconPiggy />} hint="Na caixinha"
+          info="Tudo que vocês já guardaram na caixinha. Fica separado e não entra no saldo atual." />
         <Tile label="Fatura do cartão" value={fatura?.open ?? 0} color="var(--pink)" icon={<IconCard />}
-          hint={fatura ? <>{monthLabel(fatura.month)} · vence {dateLabel(fatura.due)}{fatura.status === 'vencida' && <span className="neg"> · vencida</span>}</> : 'Sem fatura'} />
+          hint={fatura ? <>{monthLabel(fatura.month)} · vence {dateLabel(fatura.due)}{fatura.status === 'vencida' && <span className="neg"> · vencida</span>}</> : 'Sem fatura'}
+          info="Valor da fatura atual que ainda falta pagar. Compras até o dia 17 entram nesta fatura; a partir do dia 18, na próxima. Vence dia 23." />
       </div>
 
       {s.dividas.length > 0 && (
@@ -78,23 +88,34 @@ export default async function Inicio() {
       )}
 
       {/* Detalhes: só ao clicar na setinha */}
-      <Fold id="saldos" title="Recebidos, gastos e saldos do mês">
-        <div className="grid grid-5 tiles">
-          <Tile label="Recebido no mês" value={recebidoMes} color="var(--green)" icon={<IconArrowUp />} hint="Já entrou na conta" />
-          <Tile label="Gasto no mês" value={gastoMes} color="var(--red)" icon={<IconTrendDown />} hint="Já foi pago" />
-          <Tile label="Receitas previstas" value={s.aReceber} color="var(--blue)" icon={<IconArrowUp />} hint="Quanto ainda falta receber" />
-          <Tile label="Despesas previstas" value={s.aPagar + s.totalDividas} color="var(--amber)" icon={<IconArrowDown />} hint="Quanto ainda vai sair este mês" />
-          <Tile label="Saldo previsto" value={s.saldoPrevisto} color={s.saldoPrevisto < 0 ? 'var(--red)' : 'var(--green)'} icon={<IconCalendar />} hint="Quanto sobra depois de pagar tudo" />
+      <Fold id="saldos" title="Totais do mês">
+        <div className="grid grid-3 tiles">
+          <Tile label="Total que entra no mês" value={totalEntra} color="var(--green)" icon={<IconArrowUp />} hint={`${brl(recebidoMes)} já recebido`}
+            info="Soma de todas as receitas deste mês: o que já entrou mais o que ainda vai entrar." />
+          <Tile label="Total que sai no mês" value={totalSai} color="var(--red)" icon={<IconTrendDown />} hint={`${brl(gastoMes)} já pago`}
+            info="Soma de todas as despesas deste mês, pagas ou não, incluindo a fatura do cartão que vence este mês." />
+          <Tile label="Sobra depois de pagar tudo" value={s.saldoPrevisto} color={s.saldoPrevisto < 0 ? 'var(--red)' : 'var(--green)'} icon={<IconCalendar />} hint="saldo atual + falta receber − falta pagar"
+            info="Quanto vai sobrar na conta no fim do mês, depois que tudo for recebido e pago." />
         </div>
       </Fold>
 
       <Fold id="divisao" title="Divisão da sobra" defaultOpen
-        right={rule.base > 0 ? <span className="muted small">Sobra: <strong className="pos">{brl(rule.base)}</strong> · {partes}</span> : undefined}>
+        right={rule.base > 0 ? <span className="muted small"><strong className="pos">{brl(rule.base)}</strong> {partes} = <strong>{brl(rule.terco)}</strong></span> : undefined}>
         {rule.base > 0 ? (
+          <div className="stack" style={{ gap: 12 }}>
+          <div className="split-note">
+            {jaUsado > 0
+              ? <>Saldo atual <strong>{brl(s.saldoAtual)}</strong> + <strong>{brl(jaUsado)}</strong> já usados da divisão este mês = <strong>{brl(rule.base)}</strong>, </>
+              : <>Saldo atual de <strong>{brl(rule.base)}</strong> </>}
+            dividido em {rule.partes} parte(s) de <strong>{brl(rule.terco)}</strong>
+            {rule.partes > 1 && <>: {['valor individual', !rule.semAdiantar && 'adiantar contas', !rule.semGuardar && 'guardar'].filter(Boolean).join(', ')}</>}.
+            {' '}O valor individual é dividido por 2: <strong>{brl(porPessoa)}</strong> para cada um.
+            {s.aPagar + s.totalDividas > 0 && <> Lembrete: ainda faltam pagar <strong className="neg">{brl(s.aPagar + s.totalDividas)}</strong> este mês.</>}
+          </div>
           <div className="grid grid-3">
             <div className="third">
               <div className="third-head"><span>🎉 Valor individual</span><span className="third-value">{brl(rule.terco)}</span></div>
-              <span className="faint small" style={{ marginTop: -6 }}>diversão, cada um gasta sem consultar o outro</span>
+              <span className="faint small" style={{ marginTop: -6 }}>{brl(rule.terco)} ÷ 2 = {brl(porPessoa)} para cada um gastar sem consultar o outro</span>
               {rule.diversao.map(({ profile, cota, usado, resta }) => (
                 <div key={profile.id} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -149,9 +170,10 @@ export default async function Inicio() {
               )}
             </div>
           </div>
+          </div>
         ) : (
           <p style={{ margin: 0 }}>
-            <strong className="neg">Sem sobra este mês.</strong> As despesas passam as receitas em <strong className="neg">{brl(-rule.base)}</strong>.
+            <strong className="neg">Saldo atual zerado ou negativo ({brl(rule.base)}).</strong> Não há valor para dividir agora.
             {rule.cortes.length > 0 && <> Maior gasto variável: <strong>{rule.cortes[0].description}</strong> ({brl(rule.cortes[0].amount)}).</>}
           </p>
         )}
