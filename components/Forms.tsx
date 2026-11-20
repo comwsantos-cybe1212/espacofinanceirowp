@@ -46,25 +46,49 @@ export function OpeningBalanceForm({ current }: { current: string }) {
   );
 }
 
-/** Reduz a foto no navegador para 320px (fica leve para salvar no banco) */
-function resizeImage(file: File): Promise<string> {
+/** Reduz a foto no navegador (fica leve para salvar no banco). Quadrada por padrão; w×h para capas. */
+export function resizeImage(file: File, w = 320, h = w): Promise<string> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     const url = URL.createObjectURL(file);
     img.onload = () => {
-      const size = 320;
       const canvas = document.createElement('canvas');
-      canvas.width = size;
-      canvas.height = size;
+      canvas.width = w;
+      canvas.height = h;
       const ctx = canvas.getContext('2d')!;
-      const s = Math.min(img.width, img.height);
-      ctx.drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, size, size);
+      const ratio = w / h;
+      let sw = img.width, sh = img.width / ratio;
+      if (sh > img.height) { sh = img.height; sw = img.height * ratio; }
+      ctx.drawImage(img, (img.width - sw) / 2, (img.height - sh) / 2, sw, sh, 0, 0, w, h);
       URL.revokeObjectURL(url);
       resolve(canvas.toDataURL('image/jpeg', 0.82));
     };
     img.onerror = () => reject(new Error('Imagem inválida'));
     img.src = url;
   });
+}
+
+/** Botão "Trocar foto" que salva na hora */
+export function ChangePhoto({ profile, label = 'Trocar foto' }: { profile: Profile; label?: string }) {
+  const [state, setState] = useState<'idle' | 'saving' | 'ok' | 'erro'>('idle');
+  return (
+    <label className="btn btn-sm" style={{ cursor: 'pointer' }}>
+      📷 {state === 'saving' ? 'Salvando…' : state === 'ok' ? 'Foto trocada ✓' : state === 'erro' ? 'Tente outra foto' : label}
+      <input type="file" accept="image/*" hidden onChange={async (e) => {
+        const f = e.target.files?.[0];
+        if (!f) return;
+        setState('saving');
+        try {
+          const fd = new FormData();
+          fd.set('id', String(profile.id)); fd.set('name', profile.name); fd.set('color', profile.color);
+          fd.set('photo', await resizeImage(f));
+          const r = await updateProfile(null, fd);
+          setState(r.ok ? 'ok' : 'erro');
+        } catch { setState('erro'); }
+        e.target.value = '';
+      }} />
+    </label>
+  );
 }
 
 export function ProfileEditor({ profile }: { profile: Profile }) {

@@ -26,7 +26,7 @@ function Form({ profiles, tx, onDone }: { profiles: Profile[]; tx?: Tx; onDone: 
   const [method, setMethod] = useState(tx ? (tx.payment === 'cartao' ? 'credito' : tx.method ?? 'debito') : 'debito');
   const [classification, setClassification] = useState<'comum' | 'recorrente'>(tx?.recurrence === 'fixa' ? 'recorrente' : 'comum');
   const [installments, setInstallments] = useState(1);
-  const [amountMode, setAmountMode] = useState<'parcela' | 'total'>('parcela');
+  const [amountMode, setAmountMode] = useState<'parcela' | 'total'>('total');
   const [amount, setAmount] = useState(tx ? toInput(tx.amount) : '');
   const [date, setDate] = useState(tx ? (tx.purchase_date ?? tx.due_date) : todayBR());
 
@@ -34,7 +34,17 @@ function Form({ profiles, tx, onDone }: { profiles: Profile[]; tx?: Tx; onDone: 
 
   const isCard = kind === 'despesa' && method === 'credito';
   const lockedInstallment = !!tx && tx.payment === 'cartao' && tx.inst_total > 1;
-  const parcelado = !edit && isCard && classification === 'comum' && installments > 1;
+  const parcelado = !edit && isCard && installments > 1;
+  const isSalario = kind === 'receita' && subtype === 'salario';
+  const parcelaInfo = (() => {
+    const cents = parseBRL(amount);
+    if (!parcelado || !Number.isFinite(cents) || cents <= 0) return null;
+    const parcela = amountMode === 'parcela' ? cents : Math.floor(cents / installments);
+    const ultima = amountMode === 'parcela' ? cents : cents - Math.floor(cents / installments) * (installments - 1);
+    const total = amountMode === 'parcela' ? cents * installments : cents;
+    const fim = monthLabel(addMonths(invoiceMonth(date || todayBR()), installments - 1));
+    return { parcela, ultima, total, fim };
+  })();
 
   const hint = useMemo(() => {
     const cents = parseBRL(amount);
@@ -43,15 +53,11 @@ function Form({ profiles, tx, onDone }: { profiles: Profile[]; tx?: Tx; onDone: 
     if (isCard && date && !lockedInstallment) {
       const first = invoiceMonth(date);
       parts.push(`Compra no dia ${date.slice(8)} → fatura de ${monthLabel(first)} (fecha dia ${CARD_CLOSE_DAY}, vence ${CARD_DUE_DAY}/${first.slice(5)}).`);
-      if (parcelado) {
-        const parcela = amountMode === 'parcela' ? cents : Math.floor(cents / installments);
-        const total = amountMode === 'parcela' ? cents * installments : cents;
-        parts.push(`${installments}x de ${ok ? brl(parcela) : '—'} (total ${ok ? brl(total) : '—'}), última parcela em ${monthLabel(addMonths(first, installments - 1))}.`);
-      }
+      if (parcelado) parts.push('Cada parcela cai em uma fatura, começando por esta.');
     }
-    if (!edit && classification === 'recorrente') parts.push('Conta recorrente: repete automaticamente nos próximos 12 meses.');
+    if (!edit && !parcelado && (classification === 'recorrente' || isSalario)) parts.push('Recorrente: repete automaticamente nos próximos 12 meses.');
     return parts;
-  }, [amount, amountMode, date, isCard, parcelado, installments, classification, edit, lockedInstallment]);
+  }, [amount, date, isCard, parcelado, classification, edit, lockedInstallment, isSalario]);
 
   return (
     <form action={action} className="form-grid">
@@ -118,7 +124,7 @@ function Form({ profiles, tx, onDone }: { profiles: Profile[]; tx?: Tx; onDone: 
       )}
 
       {isCard ? (
-        !edit && classification === 'comum' ? (
+        !edit ? (
           <label className="field">
             <span>Parcelas</span>
             <select className="input" name="installments" value={installments} onChange={(e) => setInstallments(Number(e.target.value))}>
@@ -143,13 +149,20 @@ function Form({ profiles, tx, onDone }: { profiles: Profile[]; tx?: Tx; onDone: 
         <div className="field full">
           <span>O valor informado é</span>
           <div className="segmented">
-            <label><input type="radio" name="amount_mode" value="parcela" checked={amountMode === 'parcela'} onChange={() => setAmountMode('parcela')} />De cada parcela</label>
             <label><input type="radio" name="amount_mode" value="total" checked={amountMode === 'total'} onChange={() => setAmountMode('total')} />Total da compra</label>
+            <label><input type="radio" name="amount_mode" value="parcela" checked={amountMode === 'parcela'} onChange={() => setAmountMode('parcela')} />Valor de cada parcela</label>
           </div>
+          {parcelaInfo && (
+            <div className="parcel-result">
+              <strong>{installments}x de {brl(parcelaInfo.parcela)}</strong>
+              {parcelaInfo.ultima !== parcelaInfo.parcela && <span> (última {brl(parcelaInfo.ultima)})</span>}
+              <span> · total {brl(parcelaInfo.total)} · até {parcelaInfo.fim}</span>
+            </div>
+          )}
         </div>
       )}
 
-      {!edit && (
+      {!edit && !parcelado && !isSalario && (
         <div className="field full">
           <span>Classificação da conta</span>
           <input type="hidden" name="classification" value={classification} />
@@ -159,6 +172,8 @@ function Form({ profiles, tx, onDone }: { profiles: Profile[]; tx?: Tx; onDone: 
           </div>
         </div>
       )}
+
+      {!edit && (parcelado || isSalario) && <input type="hidden" name="classification" value={isSalario ? 'recorrente' : 'comum'} />}
 
       {edit && tx?.group_id && (
         <label className="check full">

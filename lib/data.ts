@@ -11,7 +11,7 @@ export async function loadData(): Promise<AppData> {
                group_id, inst_no, inst_total, purchase_date, paid, paid_at from transactions order by due_date, id`,
     sql<SavingMove[]>`select id, date, amount, note from savings order by date desc, id desc`,
     sql<{ key: string; value: string }[]>`select key, value from settings`,
-    sql<Goal[]>`select id, name, target, deadline, done, done_at from goals order by done, deadline, id`,
+    sql<Goal[]>`select id, name, target, deadline, done, done_at, photo from goals order by done, deadline, id`,
   ]);
   const opening = Number(settings.find((s) => s.key === 'saldo_inicial')?.value ?? 0);
   const today = todayBR();

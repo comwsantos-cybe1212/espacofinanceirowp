@@ -4,6 +4,7 @@ import ActionButton from '@/components/ActionButton';
 import Avatar from '@/components/Avatar';
 import Fold from '@/components/Fold';
 import InfoTip from '@/components/InfoTip';
+import ListTile from '@/components/ListTile';
 import { IconArrowDown, IconArrowUp, IconCalendar, IconCard, IconPiggy, IconTrendDown, IconWallet } from '@/components/Icons';
 import { ProfileChips } from '@/components/ProfileView';
 import { AdvancePicker, SaveToBox } from '@/components/RuleControls';
@@ -65,11 +66,13 @@ export default async function Inicio() {
       <div className="grid grid-5 tiles">
         <Tile label="Saldo atual" value={s.saldoAtual} color={s.saldoAtual < 0 ? 'var(--red)' : 'var(--green)'} icon={<IconWallet />}
           info="Quanto vocês têm na conta agora: tudo que já foi recebido menos tudo que já foi pago e o que foi para a caixinha." />
-        <Tile label="Falta receber" value={s.aReceber} color="var(--blue)" icon={<IconArrowUp />} hint="este mês"
-          info="Receitas deste mês que ainda não entraram na conta (status Prevista)." />
-        <Tile label="Falta pagar" value={s.aPagar + s.totalDividas} color="var(--red)" icon={<IconArrowDown />}
-          hint={s.totalDividas > 0 ? <span className="neg">este mês · inclui {brl(s.totalDividas)} atrasado</span> : 'este mês'}
-          info="Contas deste mês que ainda não foram pagas, incluindo a fatura do cartão e contas atrasadas de meses anteriores." />
+        <ListTile label="Falta receber" value={s.aReceber} color="var(--blue)" icon={<IconArrowUp />} hint="este mês"
+          info="Receitas deste mês que ainda não entraram na conta (status Prevista). Toque para ver a lista."
+          title="Falta receber este mês" items={s.receber} profiles={d.profiles} today={d.today} empty="Nada a receber este mês." />
+        <ListTile label="Falta pagar" value={s.aPagar + s.totalDividas} color="var(--red)" icon={<IconArrowDown />}
+          hint={s.totalDividas > 0 ? <span className="neg">inclui {brl(s.totalDividas)} atrasado</span> : 'este mês'}
+          info="Contas deste mês que ainda não foram pagas, incluindo a fatura do cartão e contas atrasadas de meses anteriores. Toque para ver a lista."
+          title="Falta pagar este mês" items={[...s.dividas, ...s.pagar]} profiles={d.profiles} today={d.today} empty="Nada a pagar este mês. 🚀" />
         <Tile label="Economia" value={s.savingsTotal} color="var(--accent)" icon={<IconPiggy />}
           info="Tudo que vocês já guardaram na caixinha. Fica separado e não entra no saldo atual." />
         <Tile label="Fatura do cartão" value={fatura?.open ?? 0} color="var(--pink)" icon={<IconCard />}

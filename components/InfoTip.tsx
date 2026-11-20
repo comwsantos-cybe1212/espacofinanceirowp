@@ -16,7 +16,7 @@ export default function InfoTip({ text, inline, align = 'right' }: { text: React
     return () => document.removeEventListener('mousedown', close);
   }, [open]);
   return (
-    <span className={`info ${inline ? 'inline' : ''}`} ref={ref}>
+    <span className={`info ${inline ? 'inline' : ''}`} ref={ref} onClick={(e) => e.stopPropagation()}>
       <button type="button" className="info-btn" aria-label="O que é isso?" aria-expanded={open} onClick={(e) => { e.preventDefault(); e.stopPropagation(); setOpen((o) => !o); }}>i</button>
       <span className={`info-pop ${align}`} role="tooltip" hidden={!open}>{text}</span>
     </span>

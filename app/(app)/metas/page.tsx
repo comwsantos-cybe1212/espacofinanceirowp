@@ -57,6 +57,10 @@ export default async function Metas() {
       <div className="grid grid-2">
         {plan.ativas.map(({ goal, jaTemos, faltam, meses, porMes, vencida, pct }) => (
           <div key={goal.id} className="panel goal-card">
+            {goal.photo && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img className="goal-cover" src={goal.photo} alt={goal.name} />
+            )}
             <div className="goal-head">
               <span className="goal-ico"><IconTarget /></span>
               <div style={{ flex: 1, minWidth: 0 }}>

@@ -51,7 +51,7 @@ function parseForm(f: FormData): Parsed | string {
     category = str(f, 'category');
     if (!EXPENSE_CATEGORIES.some((c) => c.value === category)) return 'Escolha uma categoria.';
   }
-  const method = kind === 'despesa' && ['debito', 'pix', 'dinheiro', 'credito'].includes(str(f, 'method')) ? str(f, 'method') : 'debito';
+  const method = kind === 'despesa' && str(f, 'method') === 'credito' ? 'credito' : 'debito';
   return { kind, description, amount, date, profileId: Number(str(f, 'profile_id')) || null, subtype, category, method, paid: str(f, 'status') === 'pago' };
 }
 
@@ -61,10 +61,12 @@ export async function createTransaction(_: ActionResult | null, f: FormData): Pr
   const p = parseForm(f);
   if (typeof p === 'string') return { ok: false, error: p };
 
-  const recurrence: 'fixa' | 'variavel' = str(f, 'classification') === 'recorrente' ? 'fixa' : 'variavel';
   const payment: 'conta' | 'cartao' = p.kind === 'despesa' && p.method === 'credito' ? 'cartao' : 'conta';
-  const installments = payment === 'cartao' && recurrence === 'variavel'
-    ? Math.min(Math.max(Math.floor(Number(str(f, 'installments')) || 1), 1), 48) : 1;
+  const installments = payment === 'cartao' ? Math.min(Math.max(Math.floor(Number(str(f, 'installments')) || 1), 1), 48) : 1;
+  // Salário é sempre recorrente; parcelado nunca é recorrente (acaba na última parcela)
+  const recurrence: 'fixa' | 'variavel' = p.subtype === 'salario' ? 'fixa'
+    : installments > 1 ? 'variavel'
+    : str(f, 'classification') === 'recorrente' ? 'fixa' : 'variavel';
   // Parcelado: o valor pode ser informado como total ou como valor de cada parcela
   const total = installments > 1 && str(f, 'amount_mode') === 'parcela' ? p.amount * installments : p.amount;
 
@@ -260,12 +262,19 @@ export async function saveGoal(_: ActionResult | null, f: FormData): Promise<Act
   const name = str(f, 'name').slice(0, 60);
   const target = parseBRL(str(f, 'target'));
   const deadline = str(f, 'deadline');
+  const photo = str(f, 'photo');
+  if (photo && (!photo.startsWith('data:image/') || photo.length > 900_000)) return { ok: false, error: 'Foto inválida ou muito grande.' };
   if (!name) return { ok: false, error: 'Dê um nome à meta.' };
   if (!Number.isFinite(target) || target <= 0) return { ok: false, error: 'Informe o valor da meta.' };
   if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(deadline)) return { ok: false, error: 'Informe até quando (mês/ano).' };
   const sql = await db();
-  if (id) await sql`update goals set name = ${name}, target = ${target}, deadline = ${deadline} where id = ${id}`;
-  else await sql`insert into goals (name, target, deadline) values (${name}, ${target}, ${deadline})`;
+  if (id) {
+    await sql`update goals set name = ${name}, target = ${target}, deadline = ${deadline} where id = ${id}`;
+    if (photo) await sql`update goals set photo = ${photo} where id = ${id}`;
+    if (f.get('remove_photo') === 'on') await sql`update goals set photo = null where id = ${id}`;
+  } else {
+    await sql`insert into goals (name, target, deadline, photo) values (${name}, ${target}, ${deadline}, ${photo || null})`;
+  }
   refresh();
   return { ok: true };
 }

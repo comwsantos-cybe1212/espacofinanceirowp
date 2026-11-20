@@ -6,6 +6,7 @@ import { saveGoal, type ActionResult } from '@/app/actions';
 import type { Goal } from '@/lib/types';
 import { IconPencil } from './Icons';
 import InfoTip from './InfoTip';
+import { resizeImage } from './Forms';
 
 function Submit() {
   const { pending } = useFormStatus();
@@ -14,6 +15,9 @@ function Submit() {
 
 function Form({ goal, onDone }: { goal?: Goal; onDone: () => void }) {
   const [state, action] = useFormState<ActionResult | null, FormData>(saveGoal, null);
+  const [photo, setPhoto] = useState('');
+  const [remove, setRemove] = useState(false);
+  const preview = remove ? '' : photo || goal?.photo || '';
   useEffect(() => { if (state?.ok) onDone(); }, [state, onDone]);
   return (
     <form action={action} className="form-grid">
@@ -21,6 +25,27 @@ function Form({ goal, onDone }: { goal?: Goal; onDone: () => void }) {
       <label className="field full"><span>Nome da meta<InfoTip inline align="left" text="O app usa a economia guardada e calcula quanto ainda falta juntar por mês até o prazo." /></span>
         <input className="input" name="name" defaultValue={goal?.name} placeholder="Ex.: Casa, viagem, reserva de emergência" maxLength={60} required />
       </label>
+      <input type="hidden" name="photo" value={photo} />
+      {remove && <input type="hidden" name="remove_photo" value="on" />}
+      <div className="field full">
+        <span>Foto da meta (opcional)</span>
+        <div className="goal-photo-pick">
+          {preview
+            // eslint-disable-next-line @next/next/no-img-element
+            ? <img src={preview} alt="Foto da meta" />
+            : <div className="goal-photo-empty">🖼️ Uma foto do que vocês querem conquistar</div>}
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <label className="btn btn-sm" style={{ cursor: 'pointer' }}>
+              📷 {preview ? 'Trocar foto' : 'Escolher foto'}
+              <input type="file" accept="image/*" hidden onChange={async (e) => {
+                const f = e.target.files?.[0];
+                if (f) { setPhoto(await resizeImage(f, 640, 360).catch(() => '')); setRemove(false); }
+              }} />
+            </label>
+            {preview && <button type="button" className="btn btn-sm btn-ghost" onClick={() => { setPhoto(''); setRemove(true); }}>Remover foto</button>}
+          </div>
+        </div>
+      </div>
       <label className="field"><span>Quanto precisamos (R$)</span>
         <input className="input" name="target" inputMode="decimal" placeholder="34.000,00" defaultValue={goal ? (goal.target / 100).toFixed(2).replace('.', ',') : ''} required />
       </label>

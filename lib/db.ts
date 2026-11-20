@@ -44,6 +44,7 @@ async function migrate(sql: postgres.Sql) {
   await sql`create table if not exists goals (
     id serial primary key, name text not null, target int not null, deadline text not null,
     done boolean not null default false, done_at text, created_at timestamptz not null default now())`;
+  await sql`alter table goals add column if not exists photo text`;
   await sql`create table if not exists settings (key text primary key, value text not null)`;
   await sql`create table if not exists login_attempts (ip text primary key, fails int not null, last_at timestamptz not null)`;
   const [{ count }] = await sql`select count(*)::int as count from profiles`;

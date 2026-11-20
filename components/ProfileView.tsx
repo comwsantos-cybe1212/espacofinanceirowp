@@ -9,6 +9,7 @@ import { brl } from '@/lib/format';
 import type { Individual, ProfileSummary } from '@/lib/finance';
 import Avatar from './Avatar';
 import InfoTip from './InfoTip';
+import { ChangePhoto } from './Forms';
 
 type Extra = (Individual & { dividido: boolean }) | null;
 
@@ -103,7 +104,8 @@ export function ProfileChips({ items }: { items: { s: ProfileSummary; individual
             <button type="button" className="modal-x" onClick={() => setOpen(null)} aria-label="Fechar">×</button>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 4 }}>
               <Avatar profile={cur.s.profile} size={44} />
-              <h3 style={{ margin: 0 }}>{cur.s.profile.name}</h3>
+              <h3 style={{ margin: 0, flex: 1 }}>{cur.s.profile.name}</h3>
+              <span style={{ marginRight: 30 }}><ChangePhoto profile={cur.s.profile} /></span>
             </div>
             <p className="muted" style={{ margin: '0 0 14px' }}>Resultados de {monthLabel(cur.s.month, true)}</p>
             <ProfileView s={cur.s} individual={cur.individual} />

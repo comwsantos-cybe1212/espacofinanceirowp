@@ -23,8 +23,6 @@ export const INCOME_SUBTYPES = [
 
 export const METHODS = [
   { value: 'debito', label: 'Débito' },
-  { value: 'pix', label: 'Pix' },
-  { value: 'dinheiro', label: 'Dinheiro' },
   { value: 'credito', label: 'Crédito' },
 ] as const;
 
@@ -48,5 +46,5 @@ export function categoryEmoji(category: string, kind: 'receita' | 'despesa' = 'd
 
 export function methodLabel(method: string | null, payment: string): string {
   if (payment === 'cartao') return 'Crédito';
-  return METHODS.find((m) => m.value === method)?.label ?? 'Débito';
+  return 'Débito'; // pix e dinheiro antigos contam como débito
 }

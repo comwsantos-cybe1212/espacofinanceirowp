@@ -1,6 +1,6 @@
 import Avatar from '@/components/Avatar';
 import InfoTip from '@/components/InfoTip';
-import { ProfileEditor } from '@/components/Forms';
+import { ChangePhoto, ProfileEditor } from '@/components/Forms';
 import MonthPicker from '@/components/MonthPicker';
 import { ProfileView } from '@/components/ProfileView';
 import { isValidMonth, monthLabel, monthOf } from '@/lib/dates';
@@ -30,10 +30,11 @@ export default async function Perfis({ searchParams }: { searchParams: { m?: str
             <div key={p.id} className="panel stack" style={{ gap: 14 }}>
               <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
                 <Avatar profile={p} size={52} />
-                <div>
+                <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 800, fontSize: 19 }}>{p.name}</div>
                   <div className="small muted">Resultados de {monthLabel(month, true)}</div>
                 </div>
+                <ChangePhoto profile={p} />
               </div>
               <ProfileView s={profileSummary(d, p, month)} individual={ind} />
             </div>
