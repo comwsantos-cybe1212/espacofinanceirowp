@@ -51,7 +51,7 @@ export default function MonthView({ d, month, cur }: { d: AppData; month: string
           <ListTile label="Vai sair" value={sai} color="var(--red)" icon={<IconArrowDown />} hint={row && row.cartao > 0 ? `inclui ${brl(row.cartao)} do cartão` : `${saidas.length} conta(s)`}
             info="Contas previstas para este mês, incluindo a fatura do cartão que vence nele. Gastos variáveis só aparecem se já tiverem sido lançados. Toque para ver a lista."
             title={`Vai sair em ${monthLabel(month, true).toLowerCase()}`} items={saidas} profiles={d.profiles} today={d.today} empty="Nenhuma conta prevista." />
-          <ListTile title={`Fatura do cartão · ${monthLabel(month, true).toLowerCase()}`} items={fatura?.items ?? []} profiles={d.profiles} today={d.today} empty="Nenhuma compra nesta fatura."
+          <ListTile groupCard={false} title={`Fatura do cartão · ${monthLabel(month, true).toLowerCase()}`} items={fatura?.items ?? []} profiles={d.profiles} today={d.today} empty="Nenhuma compra nesta fatura."
             label="Fatura do cartão" value={fatura?.total ?? 0} color="var(--pink)" icon={<IconCard />}
             hint={fatura ? `vence ${dateLabel(fatura.due)} · já somada em Vai sair` : 'Sem compras no cartão'}
             info="Total da fatura que vence neste mês: parcelas, compras e contas fixas no cartão já lançadas. Ela já está somada em Vai sair; aparece separada só para acompanhar o cartão." />

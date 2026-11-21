@@ -94,7 +94,7 @@ export default async function Inicio({ searchParams }: { searchParams: { m?: str
           title="Falta pagar este mês" items={[...s.dividas, ...s.pagar]} profiles={d.profiles} today={d.today} empty="Nada a pagar este mês. 🚀" />
         <Tile label="Economia" value={s.savingsTotal} color="var(--accent)" icon={<IconPiggy />}
           info="Tudo que vocês já guardaram na caixinha. Fica separado e não entra no saldo atual." />
-        <ListTile title="Fatura do cartão deste mês" items={faturasAbertas.flatMap((f) => f.items.filter((t) => !t.paid))} profiles={d.profiles} today={d.today} empty="Nada a pagar no cartão este mês."
+        <ListTile groupCard={false} title="Fatura do cartão deste mês" items={faturasAbertas.flatMap((f) => f.items.filter((t) => !t.paid))} profiles={d.profiles} today={d.today} empty="Nada a pagar no cartão este mês."
           label="Fatura do cartão" value={s.faturaNoPagar} color="var(--pink)" icon={<IconCard />}
           hint={<>
             {faturasAbertas.length ? faturasAbertas.map((f) => `${monthLabel(f.month)} vence ${dateLabel(f.due)}${f.status === 'vencida' ? ' (vencida)' : ''}`).join(' · ') : 'Nada a pagar este mês'}

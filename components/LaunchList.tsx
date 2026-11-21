@@ -7,6 +7,7 @@ import { EXPENSE_CATEGORIES, INCOME_SUBTYPES } from '@/lib/categories';
 import type { Profile, Tx } from '@/lib/types';
 import { IconTrash } from './Icons';
 import TxRow from './TxRow';
+import { brl } from '@/lib/format';
 
 /** Filtros (pessoa, categoria, status) que atualizam o endereço da página */
 export function LaunchFilters({ profiles }: { profiles: Profile[] }) {
@@ -42,6 +43,8 @@ export function LaunchFilters({ profiles }: { profiles: Profile[] }) {
 
 export default function LaunchList({ receitas, despesas, profiles, today }: { receitas: Tx[]; despesas: Tx[]; profiles: Profile[]; today: string }) {
   const all = [...receitas, ...despesas];
+  const debitos = despesas.filter((t) => t.payment !== 'cartao');
+  const cartao = despesas.filter((t) => t.payment === 'cartao');
   const [sel, setSel] = useState<Set<number>>(new Set());
   const [pending, start] = useTransition();
   const toggle = (id: number) => setSel((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
@@ -70,10 +73,18 @@ export default function LaunchList({ receitas, despesas, profiles, today }: { re
           {receitas.map((t) => <TxRow key={t.id} t={t} profiles={profiles} today={today} card selected={sel.has(t.id)} onSelect={toggle} />)}
         </section>
       )}
-      {despesas.length > 0 && (
+      {debitos.length > 0 && (
         <section className="stack" style={{ gap: 10 }}>
-          <h2 className="list-title neg">Despesas lançadas ({despesas.length})</h2>
-          {despesas.map((t) => <TxRow key={t.id} t={t} profiles={profiles} today={today} card selected={sel.has(t.id)} onSelect={toggle} />)}
+          <h2 className="list-title neg">Despesas no débito ({debitos.length})</h2>
+          {debitos.map((t) => <TxRow key={t.id} t={t} profiles={profiles} today={today} card selected={sel.has(t.id)} onSelect={toggle} />)}
+        </section>
+      )}
+      {cartao.length > 0 && (
+        <section className="stack" style={{ gap: 10 }}>
+          <h2 className="list-title" style={{ color: 'var(--pink)' }}>
+            Cartão de crédito ({cartao.length}) · total {brl(cartao.filter((t) => !t.covered).reduce((a, t) => a + t.amount, 0))}
+          </h2>
+          {cartao.map((t) => <TxRow key={t.id} t={t} profiles={profiles} today={today} card selected={sel.has(t.id)} onSelect={toggle} />)}
         </section>
       )}
       {all.length === 0 && <div className="panel empty">Nenhum lançamento com esses filtros.</div>}

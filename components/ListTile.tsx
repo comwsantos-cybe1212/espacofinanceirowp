@@ -6,14 +6,17 @@ import { brl } from '@/lib/format';
 import type { Profile, Tx } from '@/lib/types';
 import InfoTip from './InfoTip';
 import TxRow from './TxRow';
+import CardGroup, { splitCard } from './CardGroup';
 
 type Props = {
+  /** false na lista da própria fatura: mostra compra por compra */
+  groupCard?: boolean;
   label: string; value: number; color: string; icon: React.ReactNode; info: string; hint?: React.ReactNode;
   title: string; items: Tx[]; profiles: Profile[]; today: string; empty: string;
 };
 
 /** Card do topo que, ao tocar, mostra a lista do que compõe o valor */
-export default function ListTile({ label, value, color, icon, info, hint, title, items, profiles, today, empty }: Props) {
+export default function ListTile({ groupCard = true, label, value, color, icon, info, hint, title, items, profiles, today, empty }: Props) {
   const [open, setOpen] = useState(false);
   useEffect(() => {
     if (!open) return;
@@ -35,9 +38,17 @@ export default function ListTile({ label, value, color, icon, info, hint, title,
           <div className="modal" role="dialog" aria-modal="true" aria-label={title} style={{ maxWidth: 620 }}>
             <button type="button" className="modal-x" onClick={() => setOpen(false)} aria-label="Fechar">×</button>
             <h3 style={{ marginBottom: 4 }}>{title}</h3>
-            <p className="muted" style={{ margin: '0 0 14px' }}>{sorted.length} lançamento(s) · total <strong style={{ color }}>{brl(value)}</strong></p>
+            <p className="muted" style={{ margin: '0 0 14px' }}>{groupCard ? (() => { const { outros, faturas } = splitCard(sorted); return outros.length + faturas.length; })() : sorted.length} item(ns) · total <strong style={{ color }}>{brl(value)}</strong></p>
             {sorted.length === 0 ? <div className="empty">{empty}</div> : (
-              <div className="list">{sorted.map((t) => <TxRow key={t.id} t={t} profiles={profiles} today={today} />)}</div>
+              groupCard ? (() => {
+                const { outros, faturas } = splitCard(sorted);
+                return (
+                  <div className="list">
+                    {outros.map((t) => <TxRow key={t.id} t={t} profiles={profiles} today={today} />)}
+                    {faturas.map((f) => <CardGroup key={f.month} {...f} profiles={profiles} today={today} />)}
+                  </div>
+                );
+              })() : <div className="list">{sorted.map((t) => <TxRow key={t.id} t={t} profiles={profiles} today={today} />)}</div>
             )}
           </div>
         </div>,
