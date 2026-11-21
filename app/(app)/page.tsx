@@ -10,7 +10,7 @@ import { ProfileChips } from '@/components/ProfileView';
 import { AdvancePicker, SaveToBox } from '@/components/RuleControls';
 import TxRow from '@/components/TxRow';
 import { dateLabel, monthLabel } from '@/lib/dates';
-import { currentInvoice, freeOfInstallmentsAfter, goalsPlan, profileSummary, projection, ruleOfThree, summary } from '@/lib/finance';
+import { freeOfInstallmentsAfter, invoices, goalsPlan, profileSummary, projection, ruleOfThree, summary } from '@/lib/finance';
 import { brl } from '@/lib/format';
 import { loadData } from '@/lib/data';
 
@@ -35,7 +35,7 @@ export default async function Inicio() {
   const d = await loadData();
   const s = summary(d);
   const rule = ruleOfThree(d);
-  const fatura = currentInvoice(d);
+  const faturasAbertas = invoices(d).filter((f) => f.month <= s.openMonth && f.open > 0);
   const livre = freeOfInstallmentsAfter(d);
   const proximos = projection(d, 4).slice(1);
   const metas = goalsPlan(d);
@@ -70,14 +70,14 @@ export default async function Inicio() {
           info="Receitas deste mês que ainda não entraram na conta (status Prevista). Toque para ver a lista."
           title="Falta receber este mês" items={s.receber} profiles={d.profiles} today={d.today} empty="Nada a receber este mês." />
         <ListTile label="Falta pagar" value={s.aPagar + s.totalDividas} color="var(--red)" icon={<IconArrowDown />}
-          hint={s.totalDividas > 0 ? <span className="neg">inclui {brl(s.totalDividas)} atrasado</span> : 'este mês'}
-          info="Contas deste mês que ainda não foram pagas, incluindo a fatura do cartão e contas atrasadas de meses anteriores. Toque para ver a lista."
+          hint={<>{s.faturaNoPagar > 0 ? `inclui ${brl(s.faturaNoPagar)} do cartão` : 'este mês'}{s.totalDividas > 0 && <span className="neg"> · {brl(s.totalDividas)} atrasado</span>}</>}
+          info="Tudo que ainda falta pagar: contas do mês, contas atrasadas e a fatura do cartão (a fechada e a que está aberta recebendo compras, mesmo que vença no mês que vem). Toque para ver a lista."
           title="Falta pagar este mês" items={[...s.dividas, ...s.pagar]} profiles={d.profiles} today={d.today} empty="Nada a pagar este mês. 🚀" />
         <Tile label="Economia" value={s.savingsTotal} color="var(--accent)" icon={<IconPiggy />}
           info="Tudo que vocês já guardaram na caixinha. Fica separado e não entra no saldo atual." />
-        <Tile label="Fatura do cartão" value={fatura?.open ?? 0} color="var(--pink)" icon={<IconCard />}
-          hint={fatura ? <>{monthLabel(fatura.month)} · vence {dateLabel(fatura.due)}{fatura.status === 'vencida' && <span className="neg"> · vencida</span>}</> : 'Sem fatura'}
-          info="Valor da fatura atual que ainda falta pagar. Compras até o dia 17 entram nesta fatura; a partir do dia 18, na próxima. Vence dia 23." />
+        <Tile label="Fatura do cartão" value={s.faturaNoPagar} color="var(--pink)" icon={<IconCard />}
+          hint={faturasAbertas.length ? faturasAbertas.map((f) => `${monthLabel(f.month)} ${brl(f.open)}${f.status === 'vencida' ? ' (vencida)' : ''}`).join(' · ') : 'Nada a pagar no cartão'}
+          info="O que falta pagar no cartão: a fatura fechada e a que está aberta recebendo compras. Esse valor já está somado em Falta pagar; aqui aparece separado só para acompanhar o cartão. Compras até o dia 17 entram na fatura do mês; a partir do dia 18, na seguinte. Vence dia 23." />
       </div>
 
       {s.dividas.length > 0 && (

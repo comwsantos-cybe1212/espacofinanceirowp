@@ -22,16 +22,20 @@ export function summary(d: AppData) {
   // Dinheiro guardado sai do saldo e vai para o cofre "Economia"
   const saldoAtual = d.openingBalance + paidIn - paidOut - savingsTotal;
 
+  const openMonth = invoiceMonth(today); // fatura do cartão que está recebendo compras agora
   const receber = txs.filter((t) => !t.paid && t.kind === 'receita' && t.month <= cur);
   const dividas = txs.filter((t) => !t.paid && t.kind === 'despesa' && t.due_date < today);
-  const pagar = txs.filter((t) => !t.paid && t.kind === 'despesa' && t.month <= cur && t.due_date >= today);
+  // A pagar: contas do mês + toda fatura do cartão já fechada ou aberta (mesmo que vença no mês seguinte)
+  const pagar = txs.filter((t) => !t.paid && t.kind === 'despesa' && t.due_date >= today
+    && (t.month <= cur || (t.payment === 'cartao' && t.month <= openMonth)));
+  const faturaNoPagar = sum(pagar.filter((t) => t.payment === 'cartao')) + sum(dividas.filter((t) => t.payment === 'cartao'));
 
   const aReceber = sum(receber);
   const aPagar = sum(pagar);
   const totalDividas = sum(dividas);
   const saldoPrevisto = saldoAtual + aReceber - aPagar - totalDividas;
 
-  return { cur, saldoAtual, aReceber, aPagar, totalDividas, dividas, saldoPrevisto, savingsTotal, receber, pagar };
+  return { cur, openMonth, saldoAtual, aReceber, aPagar, totalDividas, dividas, saldoPrevisto, savingsTotal, receber, pagar, faturaNoPagar };
 }
 
 /* ---------------------------------------------------------------- Cartão */
@@ -167,7 +171,7 @@ export function projection(d: AppData, months = 12, seguirRegra = false): Projec
       despesas = s.aPagar + s.totalDividas;
       cartao = sum([...s.pagar, ...s.dividas].filter((t) => t.payment === 'cartao'));
     } else {
-      const list = d.txs.filter((t) => !t.paid && t.month === month);
+      const list = d.txs.filter((t) => !t.paid && t.month === month && !(t.payment === 'cartao' && t.month <= s.openMonth));
       receitas = sum(list.filter((t) => t.kind === 'receita'));
       const out = list.filter((t) => t.kind === 'despesa');
       despesas = sum(out);
@@ -224,10 +228,14 @@ function cotaIndividual(d: AppData, month: string) {
 }
 
 /** Gasto de uma pessoa na categoria "Valor individual" em um mês (o que é de "Nós" conta metade para cada) */
+function effMonth(t: Tx) {
+  return t.payment === 'cartao' && t.purchase_date && t.inst_no === 1 ? monthOf(t.purchase_date) : t.month;
+}
+
 function gastoIndividual(d: AppData, profileId: number, month: string) {
   const n = Math.max(d.profiles.length, 1);
   return d.txs
-    .filter((t) => t.kind === 'despesa' && t.category === INDIVIDUAL_CATEGORY && t.month === month)
+    .filter((t) => t.kind === 'despesa' && t.category === INDIVIDUAL_CATEGORY && effMonth(t) === month)
     .reduce((a, t) => a + (t.profile_id === profileId ? t.amount : !t.profile_id ? Math.round(t.amount / n) : 0), 0);
 }
 
@@ -237,7 +245,7 @@ export function individualBalance(d: AppData, profileId: number, upTo: string) {
   if (!meses.length || meses[0] > upTo) return 0;
   let total = 0;
   for (const m of meses) if (m <= upTo) total += cotaIndividual(d, m);
-  const gastos = [...new Set(d.txs.map((t) => t.month))].filter((m) => m >= meses[0] && m <= upTo)
+  const gastos = [...new Set(d.txs.map(effMonth))].filter((m) => m >= meses[0] && m <= upTo)
     .reduce((a, m) => a + gastoIndividual(d, profileId, m), 0);
   return total - gastos;
 }
@@ -259,7 +267,9 @@ export function ruleOfThree(d: AppData): RuleOfThree {
   // O que a própria divisão já usou neste mês volta para a base (senão seria descontado duas vezes)
   const adiantadoMes = d.txs.filter((t) => t.kind === 'despesa' && t.paid && t.paid_at && monthOf(t.paid_at) === cur && t.month > cur);
   const guardadoMes = d.savings.filter((m) => monthOf(m.date) === cur).reduce((a, m) => a + m.amount, 0);
-  const individualMes = sum(d.txs.filter((t) => t.kind === 'despesa' && t.category === INDIVIDUAL_CATEGORY && t.month === cur));
+  // gastos individuais que entraram na conta deste mês: os do mês + os do cartão que já estão na fatura aberta
+  const individualMes = sum(d.txs.filter((t) => t.kind === 'despesa' && t.category === INDIVIDUAL_CATEGORY
+    && (effMonth(t) === cur || (t.payment === 'cartao' && t.month > cur && t.month <= s.openMonth && effMonth(t) > cur))));
   const basePrevia = Math.max(0, s.saldoPrevisto + individualMes + sum(adiantadoMes) + guardadoMes - reservado);
   // Automática: a divisão do mês sempre acompanha a previsão atual
   const dividido = true;
