@@ -9,10 +9,9 @@ import { IconArrowDown, IconArrowUp, IconCalendar, IconCard, IconPiggy, IconTren
 import { ProfileChips } from '@/components/ProfileView';
 import { AdvancePicker, SaveToBox } from '@/components/RuleControls';
 import TxRow from '@/components/TxRow';
-import { dateLabel, isValidMonth, monthLabel } from '@/lib/dates';
+import { addMonths, dateLabel, isValidMonth, monthLabel } from '@/lib/dates';
 import MonthPicker from '@/components/MonthPicker';
-import MonthView from '@/components/MonthView';
-import { freeOfInstallmentsAfter, invoices, monthResult, goalsPlan, profileSummary, projection, ruleOfThree, summary } from '@/lib/finance';
+import { freeOfInstallmentsAfter, invoices, monthResult, goalsPlan, overdueBefore, profileSummary, ruleOfThree, summary } from '@/lib/finance';
 import { brl } from '@/lib/format';
 import { loadData } from '@/lib/data';
 
@@ -37,73 +36,79 @@ export default async function Inicio({ searchParams }: { searchParams: { m?: str
   const d = await loadData();
   const s = summary(d);
   const viewMonth = isValidMonth(searchParams.m) ? searchParams.m : s.cur;
-  if (viewMonth !== s.cur) {
-    return (
-      <div className="stack">
-        <div className="page-head">
-          <div>
-            <h1 className="page-title">{viewMonth > s.cur ? 'Previsão' : 'Resultado'}</h1>
-            <p className="page-sub">{monthLabel(viewMonth, true)}</p>
-          </div>
-          <MonthPicker month={viewMonth} path="/" />
-        </div>
-        <MonthView d={d} month={viewMonth} cur={s.cur} openMonth={s.openMonth} />
-      </div>
-    );
-  }
-  const rule = ruleOfThree(d);
-  const faturasAbertas = invoices(d).filter((f) => f.month <= s.cur && f.open > 0);
-  const proximaFatura = invoices(d).find((f) => f.month > s.cur && f.open > 0);
+  const isCur = viewMonth === s.cur;
+  const futuro = viewMonth > s.cur;
+  const vm = viewMonth;
+  const rule = ruleOfThree(d, vm);
+  const todas = invoices(d);
+  const res = monthResult(d, vm);
+
+  // Cards do topo: no mês atual, a situação de hoje; nos outros meses, o que é daquele mês
+  const receber = isCur ? s.receber : d.txs.filter((t) => t.kind === 'receita' && !t.paid && t.month === vm);
+  const atrasadasAntes = isCur ? s.dividas : overdueBefore(d, vm);
+  const pagarMes = isCur ? s.pagar : d.txs.filter((t) => t.kind === 'despesa' && !t.paid && t.month === vm);
+  const faltaPagar = [...atrasadasAntes, ...pagarMes];
+  const totalAtrasado = sum(atrasadasAntes);
+  const faturasAbertas = isCur ? todas.filter((f) => f.month <= s.cur && f.open > 0) : todas.filter((f) => f.month === vm && f.open > 0);
+  const valorFatura = isCur ? s.faturaNoPagar : sum(faturasAbertas.map((f) => ({ amount: f.open })));
+  const proximaFatura = todas.find((f) => f.month > vm && f.open > 0);
   const livre = freeOfInstallmentsAfter(d);
-  const proximos = projection(d, 4).slice(1);
+  const proximos = [1, 2, 3].map((i) => monthResult(d, addMonths(vm, i)));
   const metas = goalsPlan(d);
-  const recebidoMes = sum(d.txs.filter((t) => t.kind === 'receita' && t.paid && t.month === s.cur));
-  const gastoMes = sum(d.txs.filter((t) => t.kind === 'despesa' && t.paid && t.month === s.cur));
-  const totalEntra = sum(d.txs.filter((t) => t.kind === 'receita' && t.month === s.cur));
-  const totalSai = monthResult(d, s.cur).despesas; // inclui contas atrasadas de meses anteriores
+  const recebidoMes = sum(d.txs.filter((t) => t.kind === 'receita' && t.paid && t.month === vm));
+  const gastoMes = sum(d.txs.filter((t) => t.kind === 'despesa' && t.paid && t.month === vm));
+  const totalEntra = res.receitas;
+  const totalSai = res.despesas; // inclui contas atrasadas de meses anteriores
   const porPessoa = rule.individuais[0]?.cotaMes ?? 0;
   const perfis = d.profiles.map((p) => ({
-    s: profileSummary(d, p, s.cur),
+    s: profileSummary(d, p, vm),
     individual: (() => { const f = rule.individuais.find((x) => x.profile.id === p.id); return f ? { ...f, dividido: rule.dividido } : null; })(),
   }));
+  const lancMes = d.allTxs.filter((t) => t.month === vm);
   const maxGasto = Math.max(1, ...perfis.map((p) => p.s.gastos));
   const partes = rule.partes === 3 ? '÷ 3' : rule.partes === 2 ? '÷ 2' : 'tudo no valor individual';
+  const doMes = isCur ? 'este mês' : `em ${monthLabel(vm)}`;
 
   return (
     <div className="stack">
       <div className="page-head">
         <div>
-          <h1 className="page-title">Início</h1>
-          <p className="page-sub">Sua jornada financeira em órbita · hoje {dateLabel(d.today)}</p>
+          <h1 className="page-title">{isCur ? 'Início' : futuro ? 'Previsão' : 'Resultado'}</h1>
+          <p className="page-sub">{isCur ? <>Sua jornada financeira em órbita · hoje {dateLabel(d.today)}</> : <>{monthLabel(vm, true)} · valores deste mês para consulta</>}</p>
         </div>
-        <MonthPicker month={s.cur} path="/" />
+        <MonthPicker month={vm} path="/" />
       </div>
 
       <ProfileChips items={perfis} />
 
       {/* O básico: sempre visível */}
       <div className="grid grid-5 tiles">
-        <Tile label="Saldo atual" value={s.saldoAtual} color={s.saldoAtual < 0 ? 'var(--red)' : 'var(--green)'} icon={<IconWallet />}
-          info="Quanto vocês têm na conta agora: tudo que já foi recebido menos tudo que já foi pago e o que foi para a caixinha." />
-        <ListTile label="Falta receber" value={s.aReceber} color="var(--blue)" icon={<IconArrowUp />} hint="este mês"
-          info="Receitas deste mês que ainda não entraram na conta (status Prevista). Toque para ver a lista."
-          title="Falta receber este mês" items={s.receber} profiles={d.profiles} today={d.today} empty="Nada a receber este mês." />
-        <ListTile label="Falta pagar" value={s.aPagar + s.totalDividas} color="var(--red)" icon={<IconArrowDown />}
-          hint={<>{s.faturaNoPagar > 0 ? `inclui ${brl(s.faturaNoPagar)} do cartão` : 'este mês'}{s.totalDividas > 0 && <span className="neg"> · {brl(s.totalDividas)} atrasado</span>}</>}
-          info="Contas deste mês que ainda não foram pagas, incluindo a fatura do cartão que vence neste mês e contas atrasadas. Toque para ver a lista."
-          title="Falta pagar este mês" items={[...s.dividas, ...s.pagar]} profiles={d.profiles} today={d.today} empty="Nada a pagar este mês. 🚀" />
+        {isCur ? (
+          <Tile label="Saldo atual" value={s.saldoAtual} color={s.saldoAtual < 0 ? 'var(--red)' : 'var(--green)'} icon={<IconWallet />}
+            info="Quanto vocês têm na conta agora: tudo que já foi recebido menos tudo que já foi pago e o que foi para a caixinha." />
+        ) : (
+          <Tile label="Resultado do mês" value={res.resultado} color={res.resultado < 0 ? 'var(--red)' : 'var(--blue)'} icon={<IconWallet />}
+            info="Tudo que entra no mês − tudo que sai no mês. Sobras de meses anteriores não entram." />
+        )}
+        <ListTile label="Falta receber" value={sum(receber)} color="var(--blue)" icon={<IconArrowUp />} hint={doMes}
+          info="Receitas do mês que ainda não entraram na conta (status Prevista). Toque para ver a lista."
+          title={`Falta receber ${doMes}`} items={receber} profiles={d.profiles} today={d.today} empty="Nada a receber." />
+        <ListTile label="Falta pagar" value={sum(faltaPagar)} color="var(--red)" icon={<IconArrowDown />}
+          hint={<>{valorFatura > 0 ? `inclui ${brl(valorFatura)} do cartão` : doMes}{totalAtrasado > 0 && <span className="neg"> · {brl(totalAtrasado)} atrasado</span>}</>}
+          info="Contas do mês que ainda não foram pagas, incluindo a fatura do cartão que vence no mês e contas atrasadas. Toque para ver a lista."
+          title={`Falta pagar ${doMes}`} items={faltaPagar} profiles={d.profiles} today={d.today} empty="Nada a pagar. 🚀" />
         <Tile label="Economia" value={s.savingsTotal} color="var(--accent)" icon={<IconPiggy />}
           info="Tudo que vocês já guardaram na caixinha. Fica separado e não entra no saldo atual." />
-        <ListTile groupCard={false} title="Fatura do cartão deste mês" items={faturasAbertas.flatMap((f) => f.items.filter((t) => !t.paid))} profiles={d.profiles} today={d.today} empty="Nada a pagar no cartão este mês."
-          label="Fatura do cartão" value={s.faturaNoPagar} color="var(--pink)" icon={<IconCard />}
+        <ListTile groupCard={false} title={`Fatura do cartão ${doMes}`} items={faturasAbertas.flatMap((f) => f.items.filter((t) => !t.paid))} profiles={d.profiles} today={d.today} empty="Nada a pagar no cartão."
+          label="Fatura do cartão" value={valorFatura} color="var(--pink)" icon={<IconCard />}
           hint={<>
-            {faturasAbertas.length ? faturasAbertas.map((f) => `${monthLabel(f.month)} vence ${dateLabel(f.due)}${f.status === 'vencida' ? ' (vencida)' : ''}`).join(' · ') : 'Nada a pagar este mês'}
+            {faturasAbertas.length ? faturasAbertas.map((f) => `${monthLabel(f.month)} vence ${dateLabel(f.due)}${f.status === 'vencida' ? ' (vencida)' : ''}`).join(' · ') : `Nada a pagar ${doMes}`}
             {proximaFatura && <span className="faint" style={{ display: 'block' }}>próxima: {monthLabel(proximaFatura.month)} {brl(proximaFatura.open)}</span>}
           </>}
           info="Fatura do cartão que vence neste mês (dia 23) e ainda não foi paga. Ela já está somada em Falta pagar; aqui aparece separada só para acompanhar o cartão. Compras até o dia 17 entram na fatura do mês; a partir do dia 18, na do mês seguinte, e só contam quando ela vencer." />
       </div>
 
-      {s.dividas.length > 0 && (
+      {isCur && s.dividas.length > 0 && (
         <details className="alert">
           <summary style={{ cursor: 'pointer', listStyle: 'none' }}>
             <strong className="neg">⚠ {s.dividas.length} conta(s) atrasada(s) · {brl(s.totalDividas)}</strong> <span className="link">ver e pagar</span>
@@ -129,7 +134,7 @@ export default async function Inicio({ searchParams }: { searchParams: { m?: str
           {rule.base > 0 && <><strong className="pos">{brl(rule.base)}</strong>&nbsp;{partes} =&nbsp;<strong>{brl(rule.terco)}</strong></>}
           <InfoTip inline text={<>
             A divisão usa o <strong>resultado do próprio mês</strong>: tudo que entra no mês (salários previstos inclusive) menos tudo que sai no mês (incluindo a fatura do cartão que vence nele). Sobras de meses anteriores não entram; só a economia guardada passa de um mês para o outro.
-            {' '}Ela se atualiza sozinha a cada lançamento. Agora: 
+            {' '}Ela se atualiza sozinha a cada lançamento. {isCur ? 'Agora' : monthLabel(vm, true)}: 
             <strong>{brl(rule.base)}</strong> ÷ {rule.partes} = <strong>{brl(rule.terco)}</strong> por parte
             {rule.partes > 1 && <> ({['valor individual', !rule.semAdiantar && 'adiantar contas', !rule.semGuardar && 'guardar'].filter(Boolean).join(', ')})</>}.
             {' '}Valor individual ÷ 2 = <strong>{brl(porPessoa)}</strong> para cada um.
@@ -146,11 +151,11 @@ export default async function Inicio({ searchParams }: { searchParams: { m?: str
                   <Avatar profile={x.profile} size={26} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div className="small" style={{ fontWeight: 700 }}>{x.profile.name}</div>
-                    <div className="faint small">{rule.dividido ? `este mês foi adicionado ${brl(x.cotaMes)}` : `vai receber ${brl(x.cotaMes)}`}{x.gastoMes > 0 && ` · gastou ${brl(x.gastoMes)}`}</div>
+                    <div className="faint small">{isCur ? `este mês foi adicionado ${brl(x.cotaMes)}` : futuro ? `vai receber ${brl(x.cotaMes)}` : `recebeu ${brl(x.cotaMes)}`}{x.gastoMes > 0 && ` · gastou ${brl(x.gastoMes)}`}</div>
                   </div>
                   <div style={{ textAlign: 'right' }}>
                     <div className={`num ${x.atual < 0 ? 'neg' : ''}`} style={{ fontWeight: 800 }}>{brl(x.atual)}</div>
-                    <div className="faint small">valor atual</div>
+                    <div className="faint small">{isCur ? 'valor atual' : futuro ? 'previsto no mês' : 'no fim do mês'}</div>
                   </div>
                 </div>
               ))}
@@ -161,17 +166,17 @@ export default async function Inicio({ searchParams }: { searchParams: { m?: str
               {rule.semAdiantar ? (
                 <>
                   <span className="small muted">Desligado este mês<InfoTip inline align="left" text="Sem adiantar contas este mês: o saldo fica dividido só entre guardar e os valores individuais." /></span>
-                  <ActionButton action={setRuleFlag.bind(null, 'sem_adiantar', false)} className="btn btn-sm">Voltar a adiantar</ActionButton>
+                  {isCur && <ActionButton action={setRuleFlag.bind(null, 'sem_adiantar', false)} className="btn btn-sm">Voltar a adiantar</ActionButton>}
                 </>
               ) : (
                 <>
                   <Meter used={rule.adiantar.usado} total={rule.adiantar.cota} />
                   <span className="small muted">Adiantado {brl(rule.adiantar.usado)} · resta {brl(Math.max(0, rule.adiantar.resta))}</span>
-                  <AdvancePicker suggestions={rule.adiantar.sugestoes} all={rule.futuras} />
-                  <ActionButton action={setRuleFlag.bind(null, 'sem_adiantar', true)} className="btn btn-sm btn-ghost link-btn"
+                  {isCur && <AdvancePicker suggestions={rule.adiantar.sugestoes} all={rule.futuras} />}
+                  {isCur && <ActionButton action={setRuleFlag.bind(null, 'sem_adiantar', true)} className="btn btn-sm btn-ghost link-btn"
                     confirm="Não adiantar contas este mês? O saldo passa a ser dividido entre guardar e os valores individuais.">
                     Não adiantar contas este mês
-                  </ActionButton>
+                  </ActionButton>}
                 </>
               )}
             </div>
@@ -181,19 +186,19 @@ export default async function Inicio({ searchParams }: { searchParams: { m?: str
               {rule.semGuardar ? (
                 <>
                   <span className="small muted">Desligado este mês<InfoTip inline text="Sem economizar este mês: o saldo fica dividido só entre adiantar contas e os valores individuais." /></span>
-                  <ActionButton action={setRuleFlag.bind(null, 'sem_guardar', false)} className="btn btn-sm">Voltar a economizar</ActionButton>
+                  {isCur && <ActionButton action={setRuleFlag.bind(null, 'sem_guardar', false)} className="btn btn-sm">Voltar a economizar</ActionButton>}
                 </>
               ) : (
                 <>
                   <Meter used={rule.guardar.usado} total={rule.guardar.cota} />
-                  <span className="small muted">Na caixinha este mês: {brl(rule.guardar.usado)}</span>
-                  {rule.guardar.resta > 0
+                  <span className="small muted">Na caixinha {doMes}: {brl(rule.guardar.usado)}</span>
+                  {isCur && (rule.guardar.resta > 0
                     ? <SaveToBox cents={rule.guardar.resta} saldo={s.saldoAtual} />
-                    : <span className="small pos" style={{ fontWeight: 700 }}>✓ Valor do mês guardado na caixinha</span>}
-                  <ActionButton action={setRuleFlag.bind(null, 'sem_guardar', true)} className="btn btn-sm btn-ghost link-btn"
+                    : <span className="small pos" style={{ fontWeight: 700 }}>✓ Valor do mês guardado na caixinha</span>)}
+                  {isCur && <ActionButton action={setRuleFlag.bind(null, 'sem_guardar', true)} className="btn btn-sm btn-ghost link-btn"
                     confirm="Não economizar este mês? O saldo passa a ser dividido entre adiantar contas e os valores individuais.">
                     Não economizar este mês
-                  </ActionButton>
+                  </ActionButton>}
                 </>
               )}
             </div>
@@ -203,7 +208,15 @@ export default async function Inicio({ searchParams }: { searchParams: { m?: str
         </div>
       </Fold>
 
-      <Fold id="proximos" title="Próximos meses" right={<Link href="/projecao" className="link">Ver previsão</Link>}>
+      {!isCur && (
+        <Fold id="mes-lancamentos" title={`Lançamentos de ${monthLabel(vm, true).toLowerCase()} (${lancMes.length})`}>
+          {lancMes.length === 0 ? <div className="empty">Nada lançado neste mês.</div> : (
+            <div className="list">{lancMes.map((t) => <TxRow key={t.id} t={t} profiles={d.profiles} today={d.today} />)}</div>
+          )}
+        </Fold>
+      )}
+
+      <Fold id="proximos" title={isCur ? 'Próximos meses' : `Meses depois de ${monthLabel(vm)}`} right={<Link href="/projecao" className="link">Ver previsão</Link>}>
         <div className="list">
           {proximos.map((r) => (
             <Link className="row row-link" key={r.month} href={`/?m=${r.month}`}>

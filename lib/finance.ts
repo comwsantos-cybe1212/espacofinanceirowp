@@ -250,9 +250,10 @@ export function individualBalance(d: AppData, profileId: number, upTo: string) {
  * o valor de cada mês fica salvo para os valores individuais acumularem.
  * Gastos da própria divisão (valor individual, contas adiantadas, caixinha) não diminuem a base.
  */
-export function ruleOfThree(d: AppData): RuleOfThree {
+export function ruleOfThree(d: AppData, month?: string): RuleOfThree {
   const s = summary(d);
-  const cur = s.cur;
+  // `cur` aqui é o mês da divisão (por padrão o mês atual; pode ser outro para consulta)
+  const cur = month ?? s.cur;
   const prev = addMonths(cur, -1);
 
   const anteriores = d.profiles.map((p) => ({ p, anterior: individualBalance(d, p.id, prev) }));
@@ -265,7 +266,8 @@ export function ruleOfThree(d: AppData): RuleOfThree {
   const individualMes = sum(d.txs.filter((t) => t.kind === 'despesa' && t.category === INDIVIDUAL_CATEGORY
     && t.month === cur && effMonth(t) === cur));
   // Base = resultado do próprio mês (tudo que entra − tudo que sai), sem sobras de meses anteriores
-  const basePrevia = monthResult(d, cur).base;
+  // Meses que já passaram usam o valor guardado na época; os demais, o resultado do mês
+  const basePrevia = cur < s.cur && d.divisoes[cur] !== undefined ? d.divisoes[cur] : monthResult(d, cur).base;
   void individualMes; void guardadoMes;
   // Automática: a divisão do mês sempre acompanha a previsão atual
   const dividido = true;
