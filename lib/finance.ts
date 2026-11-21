@@ -144,52 +144,35 @@ export function freeOfInstallmentsAfter(d: AppData): string | null {
 
 export type ProjectionRow = {
   month: string;
-  inicio: number;
-  receitas: number;
-  despesas: number;
+  receitas: number; // tudo que entra no mês
+  despesas: number; // tudo que sai no mês (inclui a fatura do cartão que vence nele)
   cartao: number;
-  fim: number;
-  terco: number; // sugestão da regra de 3 (cada parte)
-  economia: number; // cofre acumulado ao fim do mês
+  resultado: number; // receitas − despesas do próprio mês
+  base: number; // resultado + gastos de valor individual do mês (base da divisão)
+  terco: number; // cada parte da divisão em 3
 };
 
 /**
- * Mês atual: começa no saldo real de hoje, soma o que falta receber e tira o que falta pagar (incl. dívidas).
- * Meses seguintes: começam com o que sobrou do anterior + receitas − despesas ainda não pagas daquele mês.
- * Com `seguirRegra`, ao fim de cada mês com sobra: ⅓ vai para os valores individuais, ⅓ para a economia e
- * ⅓ adianta contas futuras (continua no saldo porque já está contado nas despesas futuras).
+ * Resultado de um mês, olhando só para ele mesmo (nada acumula de um mês para o outro).
+ * Contas pagas antes do mês (adiantadas) não pesam de novo no mês em que venceriam.
+ * Gastos lançados como "Valor individual" voltam para a base da divisão (já saem da parte de cada um).
  */
-export function projection(d: AppData, months = 12, seguirRegra = false): ProjectionRow[] {
-  const s = summary(d);
-  const rows: ProjectionRow[] = [];
-  let inicio = s.saldoAtual;
-  let economia = s.savingsTotal;
+export function monthResult(d: AppData, month: string): ProjectionRow {
+  const doMes = d.txs.filter((t) => t.month === month);
+  const receitas = sum(doMes.filter((t) => t.kind === 'receita'));
+  const out = doMes.filter((t) => t.kind === 'despesa' && !(t.paid && t.paid_at && monthOf(t.paid_at) < month));
+  const despesas = sum(out);
+  const cartao = sum(out.filter((t) => t.payment === 'cartao'));
+  const individual = sum(out.filter((t) => t.category === INDIVIDUAL_CATEGORY && effMonth(t) === month));
+  const resultado = receitas - despesas;
+  const base = Math.max(0, resultado + individual);
+  return { month, receitas, despesas, cartao, resultado, base, terco: Math.floor(base / 3) };
+}
 
-  for (let i = 0; i < months; i++) {
-    const month = addMonths(s.cur, i);
-    let receitas: number, despesas: number, cartao: number;
-    if (i === 0) {
-      receitas = s.aReceber;
-      despesas = s.aPagar + s.totalDividas;
-      cartao = sum([...s.pagar, ...s.dividas].filter((t) => t.payment === 'cartao'));
-    } else {
-      const list = d.txs.filter((t) => !t.paid && t.month === month);
-      receitas = sum(list.filter((t) => t.kind === 'receita'));
-      const out = list.filter((t) => t.kind === 'despesa');
-      despesas = sum(out);
-      cartao = sum(out.filter((t) => t.payment === 'cartao'));
-    }
-    const fim = inicio + receitas - despesas;
-    const terco = fim > 0 ? Math.floor(fim / 3) : 0;
-    let proximoInicio = fim;
-    if (seguirRegra && terco > 0) {
-      economia += terco;
-      proximoInicio = fim - 2 * terco;
-    }
-    rows.push({ month, inicio, receitas, despesas, cartao, fim, terco, economia });
-    inicio = proximoInicio;
-  }
-  return rows;
+/** Resultado de cada mês a partir do atual */
+export function projection(d: AppData, months = 12): ProjectionRow[] {
+  const cur = monthOf(d.today);
+  return Array.from({ length: months }, (_, i) => monthResult(d, addMonths(cur, i)));
 }
 
 /* ---------------------------------------------------------------- Regra de 3 */
@@ -265,7 +248,7 @@ export function ruleOfThree(d: AppData): RuleOfThree {
   const prev = addMonths(cur, -1);
 
   const anteriores = d.profiles.map((p) => ({ p, anterior: individualBalance(d, p.id, prev) }));
-  const reservado = anteriores.reduce((a, x) => a + Math.max(0, x.anterior), 0);
+  const reservado = 0; // a base é só o mês; sobras individuais anteriores não precisam ser descontadas
   // O que a própria divisão já usou neste mês volta para a base (senão seria descontado duas vezes)
   const adiantadoMes = d.txs.filter((t) => t.kind === 'despesa' && t.paid && t.paid_at && monthOf(t.paid_at) === cur && t.month > cur);
   const guardadoMes = d.savings.filter((m) => monthOf(m.date) === cur).reduce((a, m) => a + m.amount, 0);
@@ -273,7 +256,9 @@ export function ruleOfThree(d: AppData): RuleOfThree {
   // (compras individuais no cartão feitas depois do dia 17 só pesam no mês da fatura, e aí já saíram da sobra individual)
   const individualMes = sum(d.txs.filter((t) => t.kind === 'despesa' && t.category === INDIVIDUAL_CATEGORY
     && t.month === cur && effMonth(t) === cur));
-  const basePrevia = Math.max(0, s.saldoPrevisto + individualMes + sum(adiantadoMes) + guardadoMes - reservado);
+  // Base = resultado do próprio mês (tudo que entra − tudo que sai), sem sobras de meses anteriores
+  const basePrevia = monthResult(d, cur).base;
+  void individualMes; void guardadoMes;
   // Automática: a divisão do mês sempre acompanha a previsão atual
   const dividido = true;
   const base = basePrevia;

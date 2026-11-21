@@ -119,8 +119,8 @@ export default async function Inicio({ searchParams }: { searchParams: { m?: str
             info="Soma de todas as receitas deste mês: o que já entrou mais o que ainda vai entrar." />
           <Tile label="Total que sai no mês" value={totalSai} color="var(--red)" icon={<IconTrendDown />} hint={`${brl(gastoMes)} já pago`}
             info="Soma de todas as despesas deste mês, pagas ou não, incluindo a fatura do cartão que vence este mês." />
-          <Tile label="Sobra depois de pagar tudo" value={s.saldoPrevisto} color={s.saldoPrevisto < 0 ? 'var(--red)' : 'var(--green)'} icon={<IconCalendar />}
-            info="Quanto vai sobrar na conta no fim do mês, depois que tudo for recebido e pago." />
+          <Tile label="Resultado do mês" value={totalEntra - totalSai} color={totalEntra - totalSai < 0 ? 'var(--red)' : 'var(--blue)'} icon={<IconCalendar />}
+            info="Tudo que entra no mês menos tudo que sai no mês. Não soma sobras de meses anteriores." />
         </div>
       </Fold>
 
@@ -128,9 +128,8 @@ export default async function Inicio({ searchParams }: { searchParams: { m?: str
         right={<span className="muted small" style={{ display: 'inline-flex', alignItems: 'center' }}>
           {rule.base > 0 && <><strong className="pos">{brl(rule.base)}</strong>&nbsp;{partes} =&nbsp;<strong>{brl(rule.terco)}</strong></>}
           <InfoTip inline text={<>
-            A divisão usa o <strong>saldo previsto do mês</strong>: o que vocês terão depois de receber tudo que falta e pagar todas as contas do mês (incluindo a fatura do cartão). Assim dá para dividir no começo do mês, antes de todos os salários entrarem.
-            {' '}Ela se atualiza sozinha a cada lançamento. Agora: saldo previsto <strong>{brl(rule.saldoPrevisto)}</strong>
-            {rule.reservado > 0 && <> menos <strong>{brl(rule.reservado)}</strong> dos valores individuais que sobraram</>} = 
+            A divisão usa o <strong>resultado do próprio mês</strong>: tudo que entra no mês (salários previstos inclusive) menos tudo que sai no mês (incluindo a fatura do cartão que vence nele). Sobras de meses anteriores não entram; só a economia guardada passa de um mês para o outro.
+            {' '}Ela se atualiza sozinha a cada lançamento. Agora: 
             <strong>{brl(rule.base)}</strong> ÷ {rule.partes} = <strong>{brl(rule.terco)}</strong> por parte
             {rule.partes > 1 && <> ({['valor individual', !rule.semAdiantar && 'adiantar contas', !rule.semGuardar && 'guardar'].filter(Boolean).join(', ')})</>}.
             {' '}Valor individual ÷ 2 = <strong>{brl(porPessoa)}</strong> para cada um.
@@ -210,9 +209,9 @@ export default async function Inicio({ searchParams }: { searchParams: { m?: str
             <Link className="row row-link" key={r.month} href={`/?m=${r.month}`}>
               <div className="row-main">
                 <div className="row-title">{monthLabel(r.month, true)}</div>
-                <div className="row-meta">entra {brl(r.receitas)} · sai {brl(r.despesas)}</div>
+                <div className="row-meta">entra {brl(r.receitas)} · sai {brl(r.despesas)} · resultado do mês</div>
               </div>
-              <div className={`row-amount ${r.fim < 0 ? 'neg' : 'pos'}`}>{brl(r.fim)}</div>
+              <div className={`row-amount ${r.resultado < 0 ? 'neg' : 'pos'}`}>{brl(r.resultado)}</div>
               <span className="tile-more">ver ›</span>
             </Link>
           ))}

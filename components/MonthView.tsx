@@ -5,7 +5,7 @@ import { IconArrowDown, IconArrowUp, IconCalendar, IconCard, IconWallet } from '
 import TxRow from '@/components/TxRow';
 import ListTile from '@/components/ListTile';
 import { dateLabel, monthLabel } from '@/lib/dates';
-import { invoices, projection } from '@/lib/finance';
+import { invoices, monthResult } from '@/lib/finance';
 import { brl } from '@/lib/format';
 import type { AppData } from '@/lib/types';
 
@@ -23,6 +23,7 @@ const sum = (l: { amount: number }[]) => l.reduce((a, t) => a + t.amount, 0);
 
 /** Início em outro mês: previsão (meses futuros) ou resultado (meses passados) */
 export default function MonthView({ d, month, cur }: { d: AppData; month: string; cur: string; openMonth?: string }) {
+  const economia = d.savings.reduce((a, m) => a + m.amount, 0);
   const doMes = d.allTxs.filter((t) => t.month === month);
   const receitas = doMes.filter((t) => t.kind === 'receita').sort((a, b) => a.due_date.localeCompare(b.due_date));
   const despesas = doMes.filter((t) => t.kind === 'despesa').sort((a, b) => a.due_date.localeCompare(b.due_date));
@@ -31,42 +32,41 @@ export default function MonthView({ d, month, cur }: { d: AppData; month: string
 
   let body: React.ReactNode;
   if (futuro) {
-    const row = projection(d, 25).find((r) => r.month === month);
+    const row = monthResult(d, month);
     const entradas = receitas.filter((t) => !t.paid);
     const saidas = despesas.filter((t) => !t.paid);
-    const entra = row?.receitas ?? 0;
-    const sai = row?.despesas ?? 0;
-    const resultado = entra - sai;
-    const partes = 3;
-    const terco = resultado > 0 ? Math.floor(resultado / partes) : 0;
+    const entra = row.receitas;
+    const sai = row.despesas;
+    const resultado = row.resultado;
+    const terco = row.terco;
     const porPessoa = Math.floor(terco / Math.max(d.profiles.length, 1));
     body = (
       <>
         <div className="grid grid-5 tiles">
-          <Tile label="Começa com" value={row?.inicio ?? 0} color="var(--text)" icon={<IconWallet />}
-            info="O que deve sobrar dos meses anteriores, se tudo que está lançado for recebido e pago." />
           <ListTile label="Vai entrar" value={entra} color="var(--blue)" icon={<IconArrowUp />} hint={`${entradas.length} receita(s)`}
             info="Receitas previstas para este mês (salários recorrentes e outras já lançadas). Toque para ver a lista."
             title={`Vai entrar em ${monthLabel(month, true).toLowerCase()}`} items={entradas} profiles={d.profiles} today={d.today} empty="Nenhuma receita prevista." />
-          <ListTile label="Vai sair" value={sai} color="var(--red)" icon={<IconArrowDown />} hint={row && row.cartao > 0 ? `inclui ${brl(row.cartao)} do cartão` : `${saidas.length} conta(s)`}
+          <ListTile label="Vai sair" value={sai} color="var(--red)" icon={<IconArrowDown />} hint={row.cartao > 0 ? `inclui ${brl(row.cartao)} do cartão` : `${saidas.length} conta(s)`}
             info="Contas previstas para este mês, incluindo a fatura do cartão que vence nele. Gastos variáveis só aparecem se já tiverem sido lançados. Toque para ver a lista."
             title={`Vai sair em ${monthLabel(month, true).toLowerCase()}`} items={saidas} profiles={d.profiles} today={d.today} empty="Nenhuma conta prevista." />
           <ListTile groupCard={false} title={`Fatura do cartão · ${monthLabel(month, true).toLowerCase()}`} items={fatura?.items ?? []} profiles={d.profiles} today={d.today} empty="Nenhuma compra nesta fatura."
             label="Fatura do cartão" value={fatura?.total ?? 0} color="var(--pink)" icon={<IconCard />}
             hint={fatura ? `vence ${dateLabel(fatura.due)} · já somada em Vai sair` : 'Sem compras no cartão'}
             info="Total da fatura que vence neste mês: parcelas, compras e contas fixas no cartão já lançadas. Ela já está somada em Vai sair; aparece separada só para acompanhar o cartão." />
-          <Tile label="Sobra no fim do mês" value={row?.fim ?? 0} color={(row?.fim ?? 0) < 0 ? 'var(--red)' : 'var(--green)'} icon={<IconCalendar />}
-            info="Começa com + vai entrar − vai sair." />
+          <Tile label="Resultado do mês" value={resultado} color={resultado < 0 ? 'var(--red)' : 'var(--blue)'} icon={<IconCalendar />}
+            info="Vai entrar − vai sair, só deste mês. Sobras de meses anteriores não entram." />
+          {economia > 0 && <Tile label="Economia guardada" value={economia} color="var(--accent)" icon={<IconWallet />}
+            info="O que vocês já guardaram na caixinha. É o único valor que passa de um mês para o outro." />}
         </div>
 
         <section className="panel">
           <div className="panel-head">
             <h2 className="section-title">Divisão prevista
-              <InfoTip inline align="left" text="Estimativa: o resultado do próprio mês (o que entra − o que sai) dividido em 3. A divisão de verdade é feita automaticamente quando o mês chegar, com os valores lançados até lá." />
+              <InfoTip inline align="left" text="Estimativa: o resultado do próprio mês (o que entra − o que sai) dividido em 3. Atualiza sozinha conforme vocês lançam." />
             </h2>
-            <span className="muted small">{resultado > 0 ? <><strong className="pos">{brl(resultado)}</strong> ÷ 3 = <strong>{brl(terco)}</strong></> : <strong className="neg">sem sobra prevista</strong>}</span>
+            <span className="muted small">{row.base > 0 ? <><strong className="pos">{brl(row.base)}</strong> ÷ 3 = <strong>{brl(terco)}</strong></> : <strong className="neg">sem sobra prevista</strong>}</span>
           </div>
-          {resultado > 0 ? (
+          {row.base > 0 ? (
             <div className="grid grid-3">
               <div className="third">
                 <div className="third-head"><span>🙋 Valores individuais</span><span className="third-value">{brl(terco)}</span></div>
