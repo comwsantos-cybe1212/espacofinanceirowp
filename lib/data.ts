@@ -36,7 +36,12 @@ async function readData(): Promise<AppData> {
   return {
     profiles: [...profiles],
     goals: [...goals],
-    txs: [...txs],
+    // Meses em que foi lançado o total da fatura: as compras do cartão desse mês já estão dentro dele
+    ...(() => {
+      const comTotal = new Set(txs.filter((t) => t.kind === 'despesa' && t.payment === 'cartao' && t.fatura_total).map((t) => t.month));
+      const all = txs.map((t) => ({ ...t, covered: t.kind === 'despesa' && t.payment === 'cartao' && !t.fatura_total && comTotal.has(t.month) }));
+      return { allTxs: all, txs: all.filter((t) => !t.covered) };
+    })(),
     savings: [...savings],
     openingBalance: Number.isFinite(opening) ? opening : 0,
     settings: map,

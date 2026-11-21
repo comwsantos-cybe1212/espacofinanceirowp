@@ -20,7 +20,7 @@ export default async function Lancamentos({ searchParams }: { searchParams: SP }
   const q = (searchParams.q ?? '').trim().slice(0, 60);
 
   // Com busca: procura em todos os meses; sem busca: mostra o mês escolhido
-  let list = q ? d.txs.filter((t) => norm(t.description).includes(norm(q))) : d.txs.filter((t) => t.month === month);
+  let list = q ? d.allTxs.filter((t) => norm(t.description).includes(norm(q))) : d.allTxs.filter((t) => t.month === month);
   const doMes = list;
   if (who === 'nos') list = list.filter((t) => !t.profile_id);
   else if (who) list = list.filter((t) => t.profile_id === who);
@@ -32,8 +32,8 @@ export default async function Lancamentos({ searchParams }: { searchParams: SP }
   const receitas = type === 'despesa' ? [] : list.filter((t) => t.kind === 'receita').sort(order);
   const despesas = type === 'receita' ? [] : list.filter((t) => t.kind === 'despesa').sort(order);
 
-  const entrou = sum(doMes.filter((t) => t.kind === 'receita'));
-  const saiu = sum(doMes.filter((t) => t.kind === 'despesa'));
+  const entrou = sum(doMes.filter((t) => t.kind === 'receita' && !t.covered));
+  const saiu = sum(doMes.filter((t) => t.kind === 'despesa' && !t.covered));
 
   const href = (over: Partial<SP>) => {
     const p = new URLSearchParams();

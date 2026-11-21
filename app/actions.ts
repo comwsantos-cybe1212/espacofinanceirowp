@@ -138,12 +138,16 @@ export async function updateTransaction(_: ActionResult | null, f: FormData): Pr
     paid = ${paid}, paid_at = ${paidAt}, fatura_total = ${payment === 'cartao' && t.inst_total <= 1 && (f.get('invoice_total') === 'on' || p.category === INVOICE_CATEGORY)} where id = ${id}`;
   // Lançamentos que se repetem: aplicar nome, valor, categoria e responsável a outros meses da série
   const scope = str(f, 'apply_scope') || (f.get('apply_next') === 'on' ? 'proximos' : 'um');
-  if (t.group_id && scope === 'proximos') {
+  // Mesma série = mesmo grupo OU outra repetição com o mesmo nome, pessoa e tipo (lançada separada)
+  if ((t.group_id || t.recurrence === 'fixa') && (scope === 'proximos' || scope === 'todos')) {
+    const desde = scope === 'proximos' ? t.month : '0000-00';
     await sql`update transactions set description = ${p.description}, amount = ${p.amount}, category = ${p.category}, subtype = ${p.subtype},
-      profile_id = ${p.profileId} where group_id = ${t.group_id} and month > ${t.month}`;
-  } else if (t.group_id && scope === 'todos') {
-    await sql`update transactions set description = ${p.description}, amount = ${p.amount}, category = ${p.category}, subtype = ${p.subtype},
-      profile_id = ${p.profileId} where group_id = ${t.group_id} and id <> ${id}`;
+      profile_id = ${p.profileId}
+      where id <> ${id} and inst_total = ${t.inst_total} and month > ${scope === 'proximos' ? desde : '0000-00'}
+        and (${t.group_id ? sql`group_id = ${t.group_id}` : sql`false`}
+          or (${t.recurrence === 'fixa'} and recurrence = 'fixa' and kind = ${t.kind}
+              and lower(trim(description)) = lower(trim(${t.description}))
+              and coalesce(profile_id, 0) = ${t.profile_id ?? 0}))`;
   }
   refresh();
   return { ok: true };

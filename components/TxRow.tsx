@@ -43,6 +43,7 @@ export default function TxRow({ t, profiles, today, actions = true, card, select
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.description}</span>
           {t.inst_total > 1 && <span className="chip">{t.inst_no}/{t.inst_total}</span>}
           {t.recurrence === 'fixa' && <span className="mini-ico" title="Recorrente"><IconRepeat /></span>}
+          {t.covered && <span className="chip violet" title="Já está dentro do total da fatura lançado neste mês; não soma de novo">já no total da fatura</span>}
           {t.payment === 'cartao' && <span className="mini-ico" title="Cartão"><IconCard /></span>}
         </div>
         <div className="row-meta">
@@ -54,7 +55,7 @@ export default function TxRow({ t, profiles, today, actions = true, card, select
         </div>
       </div>
       <div style={{ textAlign: 'right' }}>
-        <div className={`row-amount ${income ? 'pos' : 'neg'}`}>{income ? '+' : '−'}{brl(t.amount)}</div>
+        <div className={`row-amount ${t.covered ? 'faint' : income ? 'pos' : 'neg'}`} style={t.covered ? { textDecoration: 'line-through' } : undefined}>{income ? '+' : '−'}{brl(t.amount)}</div>
         <div className={`status ${st.cls}`}>{st.label}</div>
       </div>
       {actions && (

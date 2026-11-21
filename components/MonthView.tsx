@@ -23,7 +23,7 @@ const sum = (l: { amount: number }[]) => l.reduce((a, t) => a + t.amount, 0);
 
 /** Início em outro mês: previsão (meses futuros) ou resultado (meses passados) */
 export default function MonthView({ d, month, cur }: { d: AppData; month: string; cur: string; openMonth?: string }) {
-  const doMes = d.txs.filter((t) => t.month === month);
+  const doMes = d.allTxs.filter((t) => t.month === month);
   const receitas = doMes.filter((t) => t.kind === 'receita').sort((a, b) => a.due_date.localeCompare(b.due_date));
   const despesas = doMes.filter((t) => t.kind === 'despesa').sort((a, b) => a.due_date.localeCompare(b.due_date));
   const fatura = invoices(d).find((f) => f.month === month);
@@ -87,8 +87,8 @@ export default function MonthView({ d, month, cur }: { d: AppData; month: string
       </>
     );
   } else {
-    const entrou = sum(receitas);
-    const saiu = sum(despesas);
+    const entrou = sum(receitas.filter((t) => !t.covered));
+    const saiu = sum(despesas.filter((t) => !t.covered));
     body = (
       <div className="grid grid-3 tiles">
         <Tile label="Entrou" value={entrou} color="var(--green)" icon={<IconArrowUp />} info="Todas as receitas deste mês." />

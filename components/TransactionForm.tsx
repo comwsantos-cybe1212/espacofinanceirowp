@@ -190,7 +190,7 @@ function Form({ profiles, tx, onDone }: { profiles: Profile[]; tx?: Tx; onDone: 
 
       {!edit && (parcelado || isSalario) && <input type="hidden" name="classification" value={isSalario ? 'recorrente' : 'comum'} />}
 
-      {edit && tx?.group_id && (
+      {edit && (tx?.group_id || tx?.recurrence === 'fixa') && (
         <div className="field full">
           <span>Aplicar a alteração em
             <InfoTip inline align="left" text={`Este lançamento se repete${tx.inst_total > 1 ? ` (${tx.inst_total} parcelas)` : ''}. Nome, valor, categoria e responsável podem mudar só aqui ou em todos. Data e status mudam só neste.`} />

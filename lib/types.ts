@@ -18,6 +18,8 @@ export type Tx = {
   method: string | null;
   /** Lançado como o valor total de uma fatura (entra na fatura do mês da data, sem a regra do dia 17) */
   fatura_total: boolean;
+  /** Compra no cartão que já está dentro de um "total da fatura" lançado no mesmo mês (aparece, mas não soma) */
+  covered?: boolean;
   group_id: string | null;
   inst_no: number;
   inst_total: number;
@@ -33,6 +35,8 @@ export type Goal = { id: number; name: string; target: number; deadline: string;
 export type AppData = {
   profiles: Profile[];
   goals: Goal[];
+  /** Todos os lançamentos, inclusive os já incluídos num total de fatura (para listas) */
+  allTxs: Tx[];
   txs: Tx[];
   savings: SavingMove[];
   openingBalance: number;

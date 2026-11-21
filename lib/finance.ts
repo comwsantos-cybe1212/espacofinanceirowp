@@ -54,7 +54,8 @@ export function openInvoiceMonth(today: string) {
 }
 
 export function invoices(d: AppData): Invoice[] {
-  const card = d.txs.filter((t) => t.kind === 'despesa' && t.payment === 'cartao');
+  // Itens para mostrar incluem os já cobertos pelo total da fatura; os valores somam só o que conta
+  const card = (d.allTxs ?? d.txs).filter((t) => t.kind === 'despesa' && t.payment === 'cartao');
   const openMonth = openInvoiceMonth(d.today);
   const byMonth = new Map<string, Tx[]>();
   for (const t of card) byMonth.set(t.month, [...(byMonth.get(t.month) ?? []), t]);
@@ -63,8 +64,9 @@ export function invoices(d: AppData): Invoice[] {
   return [...byMonth.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([month, items]) => {
-      const total = sum(items);
-      const open = sum(items.filter((t) => !t.paid));
+      const counted = items.filter((t) => !t.covered);
+      const total = sum(counted);
+      const open = sum(counted.filter((t) => !t.paid));
       const due = invoiceDue(month);
       let status: Invoice['status'];
       if (items.length > 0 && open === 0) status = 'paga';
