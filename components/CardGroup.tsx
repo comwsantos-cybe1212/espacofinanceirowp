@@ -21,25 +21,25 @@ export function splitCard(items: Tx[]) {
 }
 
 /** Uma linha "Fatura do cartão" com o total; toque para ver as compras */
-export default function CardGroup({ month, items, total, profiles, today, card }: { month: string; items: Tx[]; total: number; profiles: Profile[]; today: string; card?: boolean }) {
+export default function CardGroup({ month, items, total, profiles, today, card, expandable = false }: { month: string; items: Tx[]; total: number; profiles: Profile[]; today: string; card?: boolean; expandable?: boolean }) {
   const [open, setOpen] = useState(false);
   const due = invoiceDue(month);
   const atrasada = due < today && items.some((t) => !t.paid);
   return (
     <div className={card ? 'tx-card card-group' : 'row card-group'} style={{ flexDirection: 'column', alignItems: 'stretch' }}>
-      <button type="button" className="card-group-head" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+      <button type="button" className="card-group-head" onClick={() => expandable && setOpen((o) => !o)} aria-expanded={expandable ? open : undefined} style={expandable ? undefined : { cursor: 'default' }}>
         <span className="tx-ico out" aria-hidden style={card ? undefined : { width: 34, height: 34, fontSize: 16 }}>💳</span>
         <span className="row-main" style={{ textAlign: 'left' }}>
           <span className="row-title" style={{ display: 'block' }}>Fatura do cartão · {monthLabel(month)}</span>
-          <span className="row-meta">{items.length} compra(s) no crédito · vence {dateLabel(due)}</span>
+          <span className="row-meta">vence {dateLabel(due)} · detalhes no card Fatura do cartão</span>
         </span>
         <span style={{ textAlign: 'right' }}>
           <span className="row-amount neg" style={{ display: 'block' }}>−{brl(total)}</span>
           <span className={`status ${atrasada ? 'neg' : 'warn'}`}>{atrasada ? 'Atrasada' : 'Em aberto'}</span>
         </span>
-        <span className="fold-chev" style={{ transform: open ? 'rotate(180deg)' : undefined }}><IconChevronDown /></span>
+        {expandable && <span className="fold-chev" style={{ transform: open ? 'rotate(180deg)' : undefined }}><IconChevronDown /></span>}
       </button>
-      {open && (
+      {expandable && open && (
         <div className="list card-group-body">
           {items.map((t) => <TxRow key={t.id} t={t} profiles={profiles} today={today} />)}
         </div>

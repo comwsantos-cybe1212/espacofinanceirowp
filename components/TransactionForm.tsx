@@ -54,6 +54,8 @@ function Form({ profiles, tx, onDone }: { profiles: Profile[]; tx?: Tx; onDone: 
     const parts: string[] = [];
     if (asInvoice && date) {
       parts.push(`Total da fatura de ${monthLabel(date.slice(0, 7))}, vence ${CARD_DUE_DAY}/${date.slice(5, 7)}. Use quando não quiser lançar compra por compra.`);
+    } else if (lockedInstallment && isCard && date) {
+      parts.push(`Mudar a data da compra reposiciona as parcelas pela regra do cartão (fecha dia ${CARD_CLOSE_DAY}, vence dia ${CARD_DUE_DAY}), conforme a opção escolhida abaixo.`);
     } else if (isCard && date && !lockedInstallment) {
       const first = invoiceMonth(date);
       parts.push(`Compra no dia ${date.slice(8)} → fatura de ${monthLabel(first)} (fecha dia ${CARD_CLOSE_DAY}, vence ${CARD_DUE_DAY}/${first.slice(5)}).`);
@@ -82,8 +84,7 @@ function Form({ profiles, tx, onDone }: { profiles: Profile[]; tx?: Tx; onDone: 
       </label>
       <label className="field">
         <span>{asInvoice ? 'Mês da fatura (qualquer dia)' : isCard ? 'Data da compra' : 'Data'}{hint.length > 0 && <InfoTip inline text={<>{hint.map((h) => <span key={h} style={{ display: 'block' }}>{h}</span>)}</>} />}</span>
-        <input className="input" type="date" name={lockedInstallment ? undefined : 'date'} value={date} onChange={(e) => setDate(e.target.value)} disabled={lockedInstallment} required />
-        {lockedInstallment && <input type="hidden" name="date" value={date} />}
+        <input className="input" type="date" name="date" value={date} onChange={(e) => setDate(e.target.value)} required />
       </label>
 
       <label className="field full">
@@ -120,13 +121,9 @@ function Form({ profiles, tx, onDone }: { profiles: Profile[]; tx?: Tx; onDone: 
       {kind === 'despesa' && (
         <label className="field">
           <span>Forma de pagamento</span>
-          {lockedInstallment ? (
-            <><input className="input" value="Crédito (parcelado)" disabled /><input type="hidden" name="method" value="credito" /></>
-          ) : (
-            <select className="input" name="method" value={method} onChange={(e) => setMethod(e.target.value)}>
-              {METHODS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
-            </select>
-          )}
+          <select className="input" name="method" value={method} onChange={(e) => setMethod(e.target.value)}>
+            {METHODS.map((m) => <option key={m.value} value={m.value}>{m.label}{lockedInstallment && m.value === 'credito' ? ` (parcela ${tx!.inst_no}/${tx!.inst_total})` : ''}</option>)}
+          </select>
         </label>
       )}
 
@@ -139,7 +136,13 @@ function Form({ profiles, tx, onDone }: { profiles: Profile[]; tx?: Tx; onDone: 
             </select>
           </label>
         ) : (
-          <div className="field"><span>Status</span><input className="input" value="Pago junto com a fatura" disabled /></div>
+          <label className="field">
+            <span>Status</span>
+            <select className="input" name="status" defaultValue={tx?.paid ? 'pago' : 'aberto'}>
+              <option value="aberto">Em aberto</option>
+              <option value="pago">Pago</option>
+            </select>
+          </label>
         )
       ) : (
         <label className={`field ${kind === 'receita' ? 'full' : ''}`}>

@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { db } from '@/lib/db';
 import { requireAuth } from '@/lib/session';
-import { addMonthsDate, invoiceDue, invoiceMonth, isValidDate, monthOf, todayBR } from '@/lib/dates';
+import { addMonths, addMonthsDate, invoiceDue, invoiceMonth, isValidDate, monthOf, todayBR } from '@/lib/dates';
 import { parseBRL } from '@/lib/format';
 import { EXPENSE_CATEGORIES, INCOME_SUBTYPES, INVOICE_CATEGORY } from '@/lib/categories';
 
@@ -119,25 +119,41 @@ export async function updateTransaction(_: ActionResult | null, f: FormData): Pr
   if (!t) return { ok: false, error: 'Lançamento não encontrado.' };
   const today = todayBR();
 
-  let due = t.due_date as string, month = t.month as string, purchase = t.purchase_date as string | null;
-  let payment = t.payment as string, method = p.kind === 'despesa' ? p.method : null;
-  if (t.payment === 'cartao' && t.inst_total > 1) {
-    method = 'credito'; // parcelas continuam nas faturas já calculadas
-  } else if (p.method === 'credito' && p.kind === 'despesa' && (f.get('invoice_total') === 'on' || p.category === INVOICE_CATEGORY)) {
-    payment = 'cartao'; purchase = null; month = monthOf(p.date); due = invoiceDue(month);
-  } else if (p.method === 'credito' && p.kind === 'despesa') {
-    payment = 'cartao'; purchase = p.date; month = invoiceMonth(p.date); due = invoiceDue(month);
-  } else {
-    payment = 'conta'; purchase = null; due = p.date; month = monthOf(p.date);
-  }
-  const paid = payment === 'cartao' ? t.paid : p.paid;
-  const paidAt = paid ? (t.paid_at ?? (due <= today ? due : today)) : null;
+  const scope = str(f, 'apply_scope') || (f.get('apply_next') === 'on' ? 'proximos' : 'um');
+  const asInvoice = p.kind === 'despesa' && p.method === 'credito' && (f.get('invoice_total') === 'on' || p.category === INVOICE_CATEGORY);
+  const parcelado = t.inst_total > 1 && !!t.group_id;
+
+  /** Onde a parcela/lançamento cai, a partir da data informada (regra do cartão: fecha dia 17, vence dia 23) */
+  const place = (instNo: number) => {
+    if (p.kind === 'despesa' && p.method === 'credito') {
+      if (asInvoice && !parcelado) { const month = monthOf(p.date); return { payment: 'cartao', method: 'credito', month, due: invoiceDue(month), purchase: null as string | null }; }
+      const month = addMonths(invoiceMonth(p.date), instNo - 1);
+      return { payment: 'cartao', method: 'credito', month, due: invoiceDue(month), purchase: p.date as string | null };
+    }
+    const due = addMonthsDate(p.date, instNo - 1);
+    return { payment: 'conta', method: p.kind === 'despesa' ? p.method : null, month: monthOf(due), due, purchase: null as string | null };
+  };
+
+  const pl = place(parcelado ? t.inst_no : 1);
+  // Status: vale o que foi escolhido no formulário (também para compras no cartão)
+  const paid = f.has('status') ? p.paid : t.paid;
+  const paidAt = paid ? (t.paid_at ?? (pl.due <= today ? pl.due : today)) : null;
 
   await sql`update transactions set description = ${p.description}, amount = ${p.amount}, category = ${p.category}, subtype = ${p.subtype},
-    profile_id = ${p.profileId}, method = ${method}, payment = ${payment}, due_date = ${due}, month = ${month}, purchase_date = ${purchase},
-    paid = ${paid}, paid_at = ${paidAt}, fatura_total = ${payment === 'cartao' && t.inst_total <= 1 && (f.get('invoice_total') === 'on' || p.category === INVOICE_CATEGORY)} where id = ${id}`;
+    profile_id = ${p.profileId}, method = ${pl.method}, payment = ${pl.payment}, due_date = ${pl.due}, month = ${pl.month}, purchase_date = ${pl.purchase},
+    paid = ${paid}, paid_at = ${paidAt}, fatura_total = ${pl.payment === 'cartao' && !parcelado && asInvoice} where id = ${id}`;
+
+  // Parcelado: mudar a data da compra ou a forma de pagamento reposiciona as outras parcelas do alcance escolhido
+  if (parcelado && scope !== 'um') {
+    const outras = await sql`select id, inst_no from transactions where group_id = ${t.group_id} and id <> ${id}
+      and inst_no ${scope === 'proximos' ? sql`> ${t.inst_no}` : sql`> 0`}`;
+    for (const r of outras) {
+      const o = place(r.inst_no);
+      await sql`update transactions set method = ${o.method}, payment = ${o.payment}, due_date = ${o.due}, month = ${o.month},
+        purchase_date = ${o.purchase} where id = ${r.id}`;
+    }
+  }
   // Lançamentos que se repetem: aplicar nome, valor, categoria e responsável a outros meses da série
-  const scope = str(f, 'apply_scope') || (f.get('apply_next') === 'on' ? 'proximos' : 'um');
   // Mesma série = mesmo grupo OU outra repetição com o mesmo nome, pessoa e tipo (lançada separada)
   if ((t.group_id || t.recurrence === 'fixa') && (scope === 'proximos' || scope === 'todos')) {
     const desde = scope === 'proximos' ? t.month : '0000-00';
