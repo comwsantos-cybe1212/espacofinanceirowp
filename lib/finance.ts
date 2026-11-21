@@ -25,9 +25,9 @@ export function summary(d: AppData) {
   const openMonth = invoiceMonth(today); // fatura do cartão que está recebendo compras agora
   const receber = txs.filter((t) => !t.paid && t.kind === 'receita' && t.month <= cur);
   const dividas = txs.filter((t) => !t.paid && t.kind === 'despesa' && t.due_date < today);
-  // A pagar: contas do mês + toda fatura do cartão já fechada ou aberta (mesmo que vença no mês seguinte)
-  const pagar = txs.filter((t) => !t.paid && t.kind === 'despesa' && t.due_date >= today
-    && (t.month <= cur || (t.payment === 'cartao' && t.month <= openMonth)));
+  // A pagar: contas do mês, incluindo a fatura do cartão que VENCE neste mês (dia 23).
+  // A fatura aberta (compras depois do dia 17) só entra no mês em que vence.
+  const pagar = txs.filter((t) => !t.paid && t.kind === 'despesa' && t.due_date >= today && t.month <= cur);
   const faturaNoPagar = sum(pagar.filter((t) => t.payment === 'cartao')) + sum(dividas.filter((t) => t.payment === 'cartao'));
 
   const aReceber = sum(receber);
@@ -171,7 +171,7 @@ export function projection(d: AppData, months = 12, seguirRegra = false): Projec
       despesas = s.aPagar + s.totalDividas;
       cartao = sum([...s.pagar, ...s.dividas].filter((t) => t.payment === 'cartao'));
     } else {
-      const list = d.txs.filter((t) => !t.paid && t.month === month && !(t.payment === 'cartao' && t.month <= s.openMonth));
+      const list = d.txs.filter((t) => !t.paid && t.month === month);
       receitas = sum(list.filter((t) => t.kind === 'receita'));
       const out = list.filter((t) => t.kind === 'despesa');
       despesas = sum(out);
@@ -267,9 +267,10 @@ export function ruleOfThree(d: AppData): RuleOfThree {
   // O que a própria divisão já usou neste mês volta para a base (senão seria descontado duas vezes)
   const adiantadoMes = d.txs.filter((t) => t.kind === 'despesa' && t.paid && t.paid_at && monthOf(t.paid_at) === cur && t.month > cur);
   const guardadoMes = d.savings.filter((m) => monthOf(m.date) === cur).reduce((a, m) => a + m.amount, 0);
-  // gastos individuais que entraram na conta deste mês: os do mês + os do cartão que já estão na fatura aberta
+  // gastos individuais descontados da pessoa NESTE mês e que também pesam nas contas deste mês
+  // (compras individuais no cartão feitas depois do dia 17 só pesam no mês da fatura, e aí já saíram da sobra individual)
   const individualMes = sum(d.txs.filter((t) => t.kind === 'despesa' && t.category === INDIVIDUAL_CATEGORY
-    && (effMonth(t) === cur || (t.payment === 'cartao' && t.month > cur && t.month <= s.openMonth && effMonth(t) > cur))));
+    && t.month === cur && effMonth(t) === cur));
   const basePrevia = Math.max(0, s.saldoPrevisto + individualMes + sum(adiantadoMes) + guardadoMes - reservado);
   // Automática: a divisão do mês sempre acompanha a previsão atual
   const dividido = true;

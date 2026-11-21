@@ -52,7 +52,8 @@ export default async function Inicio({ searchParams }: { searchParams: { m?: str
     );
   }
   const rule = ruleOfThree(d);
-  const faturasAbertas = invoices(d).filter((f) => f.month <= s.openMonth && f.open > 0);
+  const faturasAbertas = invoices(d).filter((f) => f.month <= s.cur && f.open > 0);
+  const proximaFatura = invoices(d).find((f) => f.month > s.cur && f.open > 0);
   const livre = freeOfInstallmentsAfter(d);
   const proximos = projection(d, 4).slice(1);
   const metas = goalsPlan(d);
@@ -89,13 +90,16 @@ export default async function Inicio({ searchParams }: { searchParams: { m?: str
           title="Falta receber este mês" items={s.receber} profiles={d.profiles} today={d.today} empty="Nada a receber este mês." />
         <ListTile label="Falta pagar" value={s.aPagar + s.totalDividas} color="var(--red)" icon={<IconArrowDown />}
           hint={<>{s.faturaNoPagar > 0 ? `inclui ${brl(s.faturaNoPagar)} do cartão` : 'este mês'}{s.totalDividas > 0 && <span className="neg"> · {brl(s.totalDividas)} atrasado</span>}</>}
-          info="Tudo que ainda falta pagar: contas do mês, contas atrasadas e a fatura do cartão (a fechada e a que está aberta recebendo compras, mesmo que vença no mês que vem). Toque para ver a lista."
+          info="Contas deste mês que ainda não foram pagas, incluindo a fatura do cartão que vence neste mês e contas atrasadas. Toque para ver a lista."
           title="Falta pagar este mês" items={[...s.dividas, ...s.pagar]} profiles={d.profiles} today={d.today} empty="Nada a pagar este mês. 🚀" />
         <Tile label="Economia" value={s.savingsTotal} color="var(--accent)" icon={<IconPiggy />}
           info="Tudo que vocês já guardaram na caixinha. Fica separado e não entra no saldo atual." />
         <Tile label="Fatura do cartão" value={s.faturaNoPagar} color="var(--pink)" icon={<IconCard />}
-          hint={faturasAbertas.length ? faturasAbertas.map((f) => `${monthLabel(f.month)} ${brl(f.open)}${f.status === 'vencida' ? ' (vencida)' : ''}`).join(' · ') : 'Nada a pagar no cartão'}
-          info="O que falta pagar no cartão: a fatura fechada e a que está aberta recebendo compras. Esse valor já está somado em Falta pagar; aqui aparece separado só para acompanhar o cartão. Compras até o dia 17 entram na fatura do mês; a partir do dia 18, na seguinte. Vence dia 23." />
+          hint={<>
+            {faturasAbertas.length ? faturasAbertas.map((f) => `${monthLabel(f.month)} vence ${dateLabel(f.due)}${f.status === 'vencida' ? ' (vencida)' : ''}`).join(' · ') : 'Nada a pagar este mês'}
+            {proximaFatura && <span className="faint" style={{ display: 'block' }}>próxima: {monthLabel(proximaFatura.month)} {brl(proximaFatura.open)}</span>}
+          </>}
+          info="Fatura do cartão que vence neste mês (dia 23) e ainda não foi paga. Ela já está somada em Falta pagar; aqui aparece separada só para acompanhar o cartão. Compras até o dia 17 entram na fatura do mês; a partir do dia 18, na do mês seguinte, e só contam quando ela vencer." />
       </div>
 
       {s.dividas.length > 0 && (

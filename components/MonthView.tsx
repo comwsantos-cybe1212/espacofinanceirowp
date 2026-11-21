@@ -47,8 +47,8 @@ export default function MonthView({ d, month, cur, openMonth }: { d: AppData; mo
           <Tile label="Vai sair" value={sai} color="var(--red)" icon={<IconArrowDown />} hint={row && row.cartao > 0 ? `inclui ${brl(row.cartao)} do cartão` : undefined}
             info="Contas previstas para este mês, incluindo a fatura do cartão que vence nele. Gastos variáveis só aparecem se já tiverem sido lançados." />
           <Tile label="Fatura do cartão" value={fatura?.total ?? 0} color="var(--pink)" icon={<IconCard />}
-            hint={!fatura ? 'Sem compras no cartão' : month <= openMonth ? `vence ${dateLabel(fatura.due)} · já conta em ${monthLabel(cur)}` : `vence ${dateLabel(fatura.due)}`}
-            info="Total da fatura deste mês: parcelas, compras e contas fixas no cartão já lançadas. A fatura que está aberta recebendo compras agora já entra no Falta pagar do mês atual, por isso não aparece de novo no Vai sair deste mês." />
+            hint={fatura ? `vence ${dateLabel(fatura.due)} · já somada em Vai sair` : 'Sem compras no cartão'}
+            info="Total da fatura que vence neste mês: parcelas, compras e contas fixas no cartão já lançadas. Ela já está somada em Vai sair; aparece separada só para acompanhar o cartão." />
           <Tile label="Sobra no fim do mês" value={row?.fim ?? 0} color={(row?.fim ?? 0) < 0 ? 'var(--red)' : 'var(--green)'} icon={<IconCalendar />}
             info="Começa com + vai entrar − vai sair." />
         </div>
