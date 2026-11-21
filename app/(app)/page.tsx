@@ -9,7 +9,9 @@ import { IconArrowDown, IconArrowUp, IconCalendar, IconCard, IconPiggy, IconTren
 import { ProfileChips } from '@/components/ProfileView';
 import { AdvancePicker, SaveToBox } from '@/components/RuleControls';
 import TxRow from '@/components/TxRow';
-import { dateLabel, monthLabel } from '@/lib/dates';
+import { dateLabel, isValidMonth, monthLabel } from '@/lib/dates';
+import MonthPicker from '@/components/MonthPicker';
+import MonthView from '@/components/MonthView';
 import { freeOfInstallmentsAfter, invoices, goalsPlan, profileSummary, projection, ruleOfThree, summary } from '@/lib/finance';
 import { brl } from '@/lib/format';
 import { loadData } from '@/lib/data';
@@ -31,9 +33,24 @@ function Meter({ used, total }: { used: number; total: number }) {
 
 const sum = (l: { amount: number }[]) => l.reduce((a, t) => a + t.amount, 0);
 
-export default async function Inicio() {
+export default async function Inicio({ searchParams }: { searchParams: { m?: string } }) {
   const d = await loadData();
   const s = summary(d);
+  const viewMonth = isValidMonth(searchParams.m) ? searchParams.m : s.cur;
+  if (viewMonth !== s.cur) {
+    return (
+      <div className="stack">
+        <div className="page-head">
+          <div>
+            <h1 className="page-title">{viewMonth > s.cur ? 'Previsão' : 'Resultado'}</h1>
+            <p className="page-sub">{monthLabel(viewMonth, true)}</p>
+          </div>
+          <MonthPicker month={viewMonth} path="/" />
+        </div>
+        <MonthView d={d} month={viewMonth} cur={s.cur} openMonth={s.openMonth} />
+      </div>
+    );
+  }
   const rule = ruleOfThree(d);
   const faturasAbertas = invoices(d).filter((f) => f.month <= s.openMonth && f.open > 0);
   const livre = freeOfInstallmentsAfter(d);
@@ -56,8 +73,9 @@ export default async function Inicio() {
       <div className="page-head">
         <div>
           <h1 className="page-title">Início</h1>
-          <p className="page-sub">Sua jornada financeira em órbita · {monthLabel(s.cur, true)}, hoje {dateLabel(d.today)}</p>
+          <p className="page-sub">Sua jornada financeira em órbita · hoje {dateLabel(d.today)}</p>
         </div>
+        <MonthPicker month={s.cur} path="/" />
       </div>
 
       <ProfileChips items={perfis} />
@@ -184,13 +202,14 @@ export default async function Inicio() {
       <Fold id="proximos" title="Próximos meses" right={<Link href="/projecao" className="link">Ver previsão</Link>}>
         <div className="list">
           {proximos.map((r) => (
-            <div className="row" key={r.month}>
+            <Link className="row row-link" key={r.month} href={`/?m=${r.month}`}>
               <div className="row-main">
                 <div className="row-title">{monthLabel(r.month, true)}</div>
                 <div className="row-meta">entra {brl(r.receitas)} · sai {brl(r.despesas)}</div>
               </div>
               <div className={`row-amount ${r.fim < 0 ? 'neg' : 'pos'}`}>{brl(r.fim)}</div>
-            </div>
+              <span className="tile-more">ver ›</span>
+            </Link>
           ))}
         </div>
         <p className="faint small" style={{ marginBottom: 0 }}>{livre ? `Cartão com parcelas até ${monthLabel(livre)}.` : 'Sem parcelamentos no cartão.'}</p>
