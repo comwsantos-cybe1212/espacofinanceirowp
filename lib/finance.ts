@@ -150,6 +150,7 @@ export type ProjectionRow = {
   resultado: number; // receitas − despesas do próprio mês
   base: number; // resultado + gastos de valor individual do mês (base da divisão)
   terco: number; // cada parte da divisão em 3
+  atrasadas: number; // contas atrasadas de meses anteriores somadas neste mês
 };
 
 /**
@@ -157,16 +158,23 @@ export type ProjectionRow = {
  * Contas pagas antes do mês (adiantadas) não pesam de novo no mês em que venceriam.
  * Gastos lançados como "Valor individual" voltam para a base da divisão (já saem da parte de cada um).
  */
+/** Contas atrasadas (vencidas e não pagas) de meses anteriores a `month`: aparecem em todo mês, do atual em diante, até serem pagas */
+export function overdueBefore(d: AppData, month: string): Tx[] {
+  if (month < monthOf(d.today)) return [];
+  return d.txs.filter((t) => t.kind === 'despesa' && !t.paid && t.due_date < d.today && t.month < month);
+}
+
 export function monthResult(d: AppData, month: string): ProjectionRow {
   const doMes = d.txs.filter((t) => t.month === month);
   const receitas = sum(doMes.filter((t) => t.kind === 'receita'));
-  const out = doMes.filter((t) => t.kind === 'despesa' && !(t.paid && t.paid_at && monthOf(t.paid_at) < month));
+  const atrasadas = overdueBefore(d, month);
+  const out = [...doMes.filter((t) => t.kind === 'despesa' && !(t.paid && t.paid_at && monthOf(t.paid_at) < month)), ...atrasadas];
   const despesas = sum(out);
   const cartao = sum(out.filter((t) => t.payment === 'cartao'));
   const individual = sum(out.filter((t) => t.category === INDIVIDUAL_CATEGORY && effMonth(t) === month));
   const resultado = receitas - despesas;
   const base = Math.max(0, resultado + individual);
-  return { month, receitas, despesas, cartao, resultado, base, terco: Math.floor(base / 3) };
+  return { month, receitas, despesas, cartao, resultado, base, terco: Math.floor(base / 3), atrasadas: sum(atrasadas) };
 }
 
 /** Resultado de cada mês a partir do atual */

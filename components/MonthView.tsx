@@ -5,7 +5,7 @@ import { IconArrowDown, IconArrowUp, IconCalendar, IconCard, IconWallet } from '
 import TxRow from '@/components/TxRow';
 import ListTile from '@/components/ListTile';
 import { dateLabel, monthLabel } from '@/lib/dates';
-import { invoices, monthResult } from '@/lib/finance';
+import { invoices, monthResult, overdueBefore } from '@/lib/finance';
 import { brl } from '@/lib/format';
 import type { AppData } from '@/lib/types';
 
@@ -34,7 +34,7 @@ export default function MonthView({ d, month, cur }: { d: AppData; month: string
   if (futuro) {
     const row = monthResult(d, month);
     const entradas = receitas.filter((t) => !t.paid);
-    const saidas = despesas.filter((t) => !t.paid);
+    const saidas = [...overdueBefore(d, month), ...despesas.filter((t) => !t.paid)];
     const entra = row.receitas;
     const sai = row.despesas;
     const resultado = row.resultado;
@@ -46,7 +46,7 @@ export default function MonthView({ d, month, cur }: { d: AppData; month: string
           <ListTile label="Vai entrar" value={entra} color="var(--blue)" icon={<IconArrowUp />} hint={`${entradas.length} receita(s)`}
             info="Receitas previstas para este mês (salários recorrentes e outras já lançadas). Toque para ver a lista."
             title={`Vai entrar em ${monthLabel(month, true).toLowerCase()}`} items={entradas} profiles={d.profiles} today={d.today} empty="Nenhuma receita prevista." />
-          <ListTile label="Vai sair" value={sai} color="var(--red)" icon={<IconArrowDown />} hint={row.cartao > 0 ? `inclui ${brl(row.cartao)} do cartão` : `${saidas.length} conta(s)`}
+          <ListTile label="Vai sair" value={sai} color="var(--red)" icon={<IconArrowDown />} hint={<>{row.cartao > 0 ? `inclui ${brl(row.cartao)} do cartão` : `${saidas.length} conta(s)`}{row.atrasadas > 0 && <span className="neg" style={{ display: 'block' }}>+ {brl(row.atrasadas)} atrasado</span>}</>}
             info="Contas previstas para este mês, incluindo a fatura do cartão que vence nele. Gastos variáveis só aparecem se já tiverem sido lançados. Toque para ver a lista."
             title={`Vai sair em ${monthLabel(month, true).toLowerCase()}`} items={saidas} profiles={d.profiles} today={d.today} empty="Nenhuma conta prevista." />
           <ListTile groupCard={false} title={`Fatura do cartão · ${monthLabel(month, true).toLowerCase()}`} items={fatura?.items ?? []} profiles={d.profiles} today={d.today} empty="Nenhuma compra nesta fatura."

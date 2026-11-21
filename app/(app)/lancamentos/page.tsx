@@ -4,6 +4,7 @@ import MonthPicker from '@/components/MonthPicker';
 import InfoTip from '@/components/InfoTip';
 import { isValidMonth, monthOf } from '@/lib/dates';
 import { brl } from '@/lib/format';
+import { overdueBefore } from '@/lib/finance';
 import { loadData } from '@/lib/data';
 import type { Tx } from '@/lib/types';
 
@@ -20,7 +21,8 @@ export default async function Lancamentos({ searchParams }: { searchParams: SP }
   const q = (searchParams.q ?? '').trim().slice(0, 60);
 
   // Com busca: procura em todos os meses; sem busca: mostra o mês escolhido
-  let list = q ? d.allTxs.filter((t) => norm(t.description).includes(norm(q))) : d.allTxs.filter((t) => t.month === month);
+  // No mês atual e nos seguintes, contas atrasadas de meses anteriores também aparecem até serem pagas
+  let list = q ? d.allTxs.filter((t) => norm(t.description).includes(norm(q))) : [...overdueBefore(d, month), ...d.allTxs.filter((t) => t.month === month)];
   const doMes = list;
   if (who === 'nos') list = list.filter((t) => !t.profile_id);
   else if (who) list = list.filter((t) => t.profile_id === who);

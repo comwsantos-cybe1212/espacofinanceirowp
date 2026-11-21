@@ -12,7 +12,7 @@ import TxRow from '@/components/TxRow';
 import { dateLabel, isValidMonth, monthLabel } from '@/lib/dates';
 import MonthPicker from '@/components/MonthPicker';
 import MonthView from '@/components/MonthView';
-import { freeOfInstallmentsAfter, invoices, goalsPlan, profileSummary, projection, ruleOfThree, summary } from '@/lib/finance';
+import { freeOfInstallmentsAfter, invoices, monthResult, goalsPlan, profileSummary, projection, ruleOfThree, summary } from '@/lib/finance';
 import { brl } from '@/lib/format';
 import { loadData } from '@/lib/data';
 
@@ -60,7 +60,7 @@ export default async function Inicio({ searchParams }: { searchParams: { m?: str
   const recebidoMes = sum(d.txs.filter((t) => t.kind === 'receita' && t.paid && t.month === s.cur));
   const gastoMes = sum(d.txs.filter((t) => t.kind === 'despesa' && t.paid && t.month === s.cur));
   const totalEntra = sum(d.txs.filter((t) => t.kind === 'receita' && t.month === s.cur));
-  const totalSai = sum(d.txs.filter((t) => t.kind === 'despesa' && t.month === s.cur));
+  const totalSai = monthResult(d, s.cur).despesas; // inclui contas atrasadas de meses anteriores
   const porPessoa = rule.individuais[0]?.cotaMes ?? 0;
   const perfis = d.profiles.map((p) => ({
     s: profileSummary(d, p, s.cur),
