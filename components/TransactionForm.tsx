@@ -176,10 +176,16 @@ function Form({ profiles, tx, onDone }: { profiles: Profile[]; tx?: Tx; onDone: 
       {!edit && (parcelado || isSalario) && <input type="hidden" name="classification" value={isSalario ? 'recorrente' : 'comum'} />}
 
       {edit && tx?.group_id && (
-        <label className="check full">
-          <input type="checkbox" name="apply_next" />
-          Aplicar descrição, valor, categoria e responsável também aos próximos meses
-        </label>
+        <div className="field full">
+          <span>Aplicar a alteração em
+            <InfoTip inline align="left" text={`Este lançamento se repete${tx.inst_total > 1 ? ` (${tx.inst_total} parcelas)` : ''}. Nome, valor, categoria e responsável podem mudar só aqui ou em todos. Data e status mudam só neste.`} />
+          </span>
+          <div className="segmented">
+            <label><input type="radio" name="apply_scope" value="um" defaultChecked />Só {tx.inst_total > 1 ? 'esta parcela' : 'este mês'}</label>
+            <label><input type="radio" name="apply_scope" value="proximos" />Este e os próximos</label>
+            <label><input type="radio" name="apply_scope" value="todos" />Todos os meses</label>
+          </div>
+        </div>
       )}
 
       {state?.error && <p className="error full" role="alert">{state.error}</p>}

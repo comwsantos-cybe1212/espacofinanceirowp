@@ -128,9 +128,14 @@ export async function updateTransaction(_: ActionResult | null, f: FormData): Pr
   await sql`update transactions set description = ${p.description}, amount = ${p.amount}, category = ${p.category}, subtype = ${p.subtype},
     profile_id = ${p.profileId}, method = ${method}, payment = ${payment}, due_date = ${due}, month = ${month}, purchase_date = ${purchase},
     paid = ${paid}, paid_at = ${paidAt} where id = ${id}`;
-  if (t.group_id && f.get('apply_next') === 'on') {
+  // Lançamentos que se repetem: aplicar nome, valor, categoria e responsável a outros meses da série
+  const scope = str(f, 'apply_scope') || (f.get('apply_next') === 'on' ? 'proximos' : 'um');
+  if (t.group_id && scope === 'proximos') {
     await sql`update transactions set description = ${p.description}, amount = ${p.amount}, category = ${p.category}, subtype = ${p.subtype},
       profile_id = ${p.profileId} where group_id = ${t.group_id} and month > ${t.month}`;
+  } else if (t.group_id && scope === 'todos') {
+    await sql`update transactions set description = ${p.description}, amount = ${p.amount}, category = ${p.category}, subtype = ${p.subtype},
+      profile_id = ${p.profileId} where group_id = ${t.group_id} and id <> ${id}`;
   }
   refresh();
   return { ok: true };
