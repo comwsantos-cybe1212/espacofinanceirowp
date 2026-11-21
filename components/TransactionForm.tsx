@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal, useFormState, useFormStatus } from 'react-dom';
 import { createTransaction, updateTransaction, type ActionResult } from '@/app/actions';
-import { EXPENSE_CATEGORIES, INCOME_SUBTYPES, METHODS } from '@/lib/categories';
+import { EXPENSE_CATEGORIES, INCOME_SUBTYPES, INVOICE_CATEGORY, METHODS } from '@/lib/categories';
 import { addMonths, invoiceMonth, monthLabel, todayBR, CARD_CLOSE_DAY, CARD_DUE_DAY } from '@/lib/dates';
 import { brl, parseBRL } from '@/lib/format';
 import type { Profile, Tx } from '@/lib/types';
@@ -34,7 +34,9 @@ function Form({ profiles, tx, onDone }: { profiles: Profile[]; tx?: Tx; onDone: 
 
   const isCard = kind === 'despesa' && method === 'credito';
   const lockedInstallment = !!tx && tx.payment === 'cartao' && tx.inst_total > 1;
-  const parcelado = !edit && isCard && installments > 1;
+  const [invoiceTotal, setInvoiceTotal] = useState(!!tx?.fatura_total);
+  const asInvoice = isCard && !lockedInstallment && invoiceTotal;
+  const parcelado = !edit && isCard && !asInvoice && installments > 1;
   const isSalario = kind === 'receita' && subtype === 'salario';
   const parcelaInfo = (() => {
     const cents = parseBRL(amount);
@@ -50,14 +52,16 @@ function Form({ profiles, tx, onDone }: { profiles: Profile[]; tx?: Tx; onDone: 
     const cents = parseBRL(amount);
     const ok = Number.isFinite(cents) && cents > 0;
     const parts: string[] = [];
-    if (isCard && date && !lockedInstallment) {
+    if (asInvoice && date) {
+      parts.push(`Total da fatura de ${monthLabel(date.slice(0, 7))}, vence ${CARD_DUE_DAY}/${date.slice(5, 7)}. Use quando não quiser lançar compra por compra.`);
+    } else if (isCard && date && !lockedInstallment) {
       const first = invoiceMonth(date);
       parts.push(`Compra no dia ${date.slice(8)} → fatura de ${monthLabel(first)} (fecha dia ${CARD_CLOSE_DAY}, vence ${CARD_DUE_DAY}/${first.slice(5)}).`);
       if (parcelado) parts.push('Cada parcela cai em uma fatura, começando por esta.');
     }
     if (!edit && !parcelado && (classification === 'recorrente' || isSalario)) parts.push('Recorrente: repete automaticamente nos próximos 12 meses.');
     return parts;
-  }, [amount, date, isCard, parcelado, classification, edit, lockedInstallment, isSalario]);
+  }, [amount, date, isCard, parcelado, classification, edit, lockedInstallment, isSalario, asInvoice]);
 
   return (
     <form action={action} className="form-grid">
@@ -77,7 +81,7 @@ function Form({ profiles, tx, onDone }: { profiles: Profile[]; tx?: Tx; onDone: 
         <input className="input" name="amount" inputMode="decimal" placeholder="0,00" value={amount} onChange={(e) => setAmount(e.target.value)} required />
       </label>
       <label className="field">
-        <span>{isCard ? 'Data da compra' : 'Data'}{hint.length > 0 && <InfoTip inline text={<>{hint.map((h) => <span key={h} style={{ display: 'block' }}>{h}</span>)}</>} />}</span>
+        <span>{asInvoice ? 'Mês da fatura (qualquer dia)' : isCard ? 'Data da compra' : 'Data'}{hint.length > 0 && <InfoTip inline text={<>{hint.map((h) => <span key={h} style={{ display: 'block' }}>{h}</span>)}</>} />}</span>
         <input className="input" type="date" name={lockedInstallment ? undefined : 'date'} value={date} onChange={(e) => setDate(e.target.value)} disabled={lockedInstallment} required />
         {lockedInstallment && <input type="hidden" name="date" value={date} />}
       </label>
@@ -104,7 +108,10 @@ function Form({ profiles, tx, onDone }: { profiles: Profile[]; tx?: Tx; onDone: 
             {INCOME_SUBTYPES.map((s) => <option key={s.value} value={s.value}>{s.emoji} {s.label}</option>)}
           </select>
         ) : (
-          <select className="input" name="category" value={category} onChange={(e) => setCategory(e.target.value)}>
+          <select className="input" name="category" value={category} onChange={(e) => {
+            setCategory(e.target.value);
+            if (e.target.value === INVOICE_CATEGORY) { setMethod('credito'); setInvoiceTotal(true); }
+          }}>
             {EXPENSE_CATEGORIES.map((c) => <option key={c.value} value={c.value}>{c.emoji} {c.value}</option>)}
           </select>
         )}
@@ -124,7 +131,7 @@ function Form({ profiles, tx, onDone }: { profiles: Profile[]; tx?: Tx; onDone: 
       )}
 
       {isCard ? (
-        !edit ? (
+        !edit && !asInvoice ? (
           <label className="field">
             <span>Parcelas</span>
             <select className="input" name="installments" value={installments} onChange={(e) => setInstallments(Number(e.target.value))}>
@@ -142,6 +149,14 @@ function Form({ profiles, tx, onDone }: { profiles: Profile[]; tx?: Tx; onDone: 
               ? <><option value="aberto">Prevista</option><option value="pago">Recebida</option></>
               : <><option value="aberto">Em aberto</option><option value="pago">Pago</option></>}
           </select>
+        </label>
+      )}
+
+      {isCard && !lockedInstallment && (
+        <label className="check full">
+          <input type="checkbox" name="invoice_total" checked={invoiceTotal} onChange={(e) => setInvoiceTotal(e.target.checked)} />
+          É o valor total da fatura (sem detalhar as compras)
+          {asInvoice && date && <span className="chip violet">fatura {monthLabel(date.slice(0, 7))} · vence {CARD_DUE_DAY}/{date.slice(5, 7)}</span>}
         </label>
       )}
 

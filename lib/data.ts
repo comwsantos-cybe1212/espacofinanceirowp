@@ -23,7 +23,7 @@ async function readData(): Promise<AppData> {
   const sql = await db();
   const [profiles, txs, savings, settings, goals] = await Promise.all([
     sql<Profile[]>`select id, name, color, photo from profiles order by id`,
-    sql<Tx[]>`select id, profile_id, kind, subtype, category, description, amount, due_date, month, recurrence, payment, method,
+    sql<Tx[]>`select id, profile_id, kind, subtype, category, description, amount, due_date, month, recurrence, payment, method, fatura_total,
                group_id, inst_no, inst_total, purchase_date, paid, paid_at from transactions order by due_date, id`,
     sql<SavingMove[]>`select id, date, amount, note from savings order by date desc, id desc`,
     sql<{ key: string; value: string }[]>`select key, value from settings`,

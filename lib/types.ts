@@ -16,6 +16,8 @@ export type Tx = {
   recurrence: 'fixa' | 'variavel';
   payment: 'conta' | 'cartao';
   method: string | null;
+  /** Lançado como o valor total de uma fatura (entra na fatura do mês da data, sem a regra do dia 17) */
+  fatura_total: boolean;
   group_id: string | null;
   inst_no: number;
   inst_total: number;

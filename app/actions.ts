@@ -5,7 +5,7 @@ import { db } from '@/lib/db';
 import { requireAuth } from '@/lib/session';
 import { addMonthsDate, invoiceDue, invoiceMonth, isValidDate, monthOf, todayBR } from '@/lib/dates';
 import { parseBRL } from '@/lib/format';
-import { EXPENSE_CATEGORIES, INCOME_SUBTYPES } from '@/lib/categories';
+import { EXPENSE_CATEGORIES, INCOME_SUBTYPES, INVOICE_CATEGORY } from '@/lib/categories';
 
 export type ActionResult = { ok: boolean; error?: string };
 
@@ -14,7 +14,7 @@ const str = (f: FormData, k: string) => String(f.get(k) ?? '').trim();
 
 type NewRow = {
   profile_id: number | null; kind: string; subtype: string | null; category: string; description: string;
-  amount: number; due_date: string; month: string; recurrence: string; payment: string; method: string | null; group_id: string | null;
+  amount: number; due_date: string; month: string; recurrence: string; payment: string; method: string | null; fatura_total: boolean; group_id: string | null;
   inst_no: number; inst_total: number; purchase_date: string | null; paid: boolean; paid_at: string | null;
 };
 
@@ -49,7 +49,7 @@ function parseForm(f: FormData): Parsed | string {
     category = str(f, 'category');
     if (!EXPENSE_CATEGORIES.some((c) => c.value === category)) return 'Escolha uma categoria.';
   }
-  const method = kind === 'despesa' && str(f, 'method') === 'credito' ? 'credito' : 'debito';
+  const method = kind === 'despesa' && (str(f, 'method') === 'credito' || category === INVOICE_CATEGORY) ? 'credito' : 'debito';
   return { kind, description, amount, date, profileId: Number(str(f, 'profile_id')) || null, subtype, category, method, paid: str(f, 'status') === 'pago' };
 }
 
@@ -60,7 +60,8 @@ export async function createTransaction(_: ActionResult | null, f: FormData): Pr
   if (typeof p === 'string') return { ok: false, error: p };
 
   const payment: 'conta' | 'cartao' = p.kind === 'despesa' && p.method === 'credito' ? 'cartao' : 'conta';
-  const installments = payment === 'cartao' ? Math.min(Math.max(Math.floor(Number(str(f, 'installments')) || 1), 1), 48) : 1;
+  const faturaTotal = payment === 'cartao' && (f.get('invoice_total') === 'on' || p.category === INVOICE_CATEGORY);
+  const installments = payment === 'cartao' && !faturaTotal ? Math.min(Math.max(Math.floor(Number(str(f, 'installments')) || 1), 1), 48) : 1;
   // Salário é sempre recorrente; parcelado nunca é recorrente (acaba na última parcela)
   const recurrence: 'fixa' | 'variavel' = p.subtype === 'salario' ? 'fixa'
     : installments > 1 ? 'variavel'
@@ -69,7 +70,7 @@ export async function createTransaction(_: ActionResult | null, f: FormData): Pr
   const total = installments > 1 && str(f, 'amount_mode') === 'parcela' ? p.amount * installments : p.amount;
 
   const rows: NewRow[] = [];
-  const common = { profile_id: p.profileId, kind: p.kind, subtype: p.subtype, category: p.category, description: p.description, recurrence, payment, method: p.kind === 'despesa' ? p.method : null };
+  const common = { profile_id: p.profileId, kind: p.kind, subtype: p.subtype, category: p.category, description: p.description, recurrence, payment, method: p.kind === 'despesa' ? p.method : null, fatura_total: faturaTotal };
 
   if (payment === 'cartao' && installments > 1) {
     // A 1ª parcela segue a regra do dia 17; as demais caem uma por fatura
@@ -83,7 +84,12 @@ export async function createTransaction(_: ActionResult | null, f: FormData): Pr
     const count = recurrence === 'fixa' ? 12 : 1; // recorrentes se repetem por 1 ano
     for (let i = 0; i < count; i++) {
       const d = addMonthsDate(p.date, i);
-      if (payment === 'cartao') {
+      if (faturaTotal) {
+        // Total da fatura: entra na fatura do mês da data informada (vence dia 23 desse mês)
+        const month = monthOf(d);
+        rows.push({ ...common, amount: p.amount, month, due_date: invoiceDue(month), group_id: null, inst_no: 1, inst_total: 1,
+          purchase_date: null, paid: false, paid_at: null });
+      } else if (payment === 'cartao') {
         const month = invoiceMonth(d);
         rows.push({ ...common, amount: p.amount, month, due_date: invoiceDue(month), group_id: null, inst_no: 1, inst_total: 1,
           purchase_date: d, paid: false, paid_at: null });
@@ -117,6 +123,8 @@ export async function updateTransaction(_: ActionResult | null, f: FormData): Pr
   let payment = t.payment as string, method = p.kind === 'despesa' ? p.method : null;
   if (t.payment === 'cartao' && t.inst_total > 1) {
     method = 'credito'; // parcelas continuam nas faturas já calculadas
+  } else if (p.method === 'credito' && p.kind === 'despesa' && (f.get('invoice_total') === 'on' || p.category === INVOICE_CATEGORY)) {
+    payment = 'cartao'; purchase = null; month = monthOf(p.date); due = invoiceDue(month);
   } else if (p.method === 'credito' && p.kind === 'despesa') {
     payment = 'cartao'; purchase = p.date; month = invoiceMonth(p.date); due = invoiceDue(month);
   } else {
@@ -127,7 +135,7 @@ export async function updateTransaction(_: ActionResult | null, f: FormData): Pr
 
   await sql`update transactions set description = ${p.description}, amount = ${p.amount}, category = ${p.category}, subtype = ${p.subtype},
     profile_id = ${p.profileId}, method = ${method}, payment = ${payment}, due_date = ${due}, month = ${month}, purchase_date = ${purchase},
-    paid = ${paid}, paid_at = ${paidAt} where id = ${id}`;
+    paid = ${paid}, paid_at = ${paidAt}, fatura_total = ${payment === 'cartao' && t.inst_total <= 1 && (f.get('invoice_total') === 'on' || p.category === INVOICE_CATEGORY)} where id = ${id}`;
   // Lançamentos que se repetem: aplicar nome, valor, categoria e responsável a outros meses da série
   const scope = str(f, 'apply_scope') || (f.get('apply_next') === 'on' ? 'proximos' : 'um');
   if (t.group_id && scope === 'proximos') {

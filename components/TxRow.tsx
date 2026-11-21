@@ -50,7 +50,7 @@ export default function TxRow({ t, profiles, today, actions = true, card, select
           <span>{categoryEmoji(t.category, t.kind)} {t.category}</span>
           <span>· {profile.name}</span>
           <span>· {fmtDate(t.purchase_date ?? t.due_date)}</span>
-          {!income && <span>· {methodLabel(t.method, t.payment)}{t.payment === 'cartao' && ` · fatura ${monthLabel(t.month)}`}</span>}
+          {!income && <span>· {methodLabel(t.method, t.payment)}{t.payment === 'cartao' && ` · ${t.fatura_total ? 'total da fatura' : 'fatura'} ${monthLabel(t.month)}`}</span>}
         </div>
       </div>
       <div style={{ textAlign: 'right' }}>

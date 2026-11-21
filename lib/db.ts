@@ -38,6 +38,7 @@ async function migrate(sql: postgres.Sql) {
   await sql`create index if not exists transactions_month_idx on transactions(month)`;
   await sql`alter table transactions add column if not exists method text`; // debito | pix | dinheiro | credito
   await sql`update transactions set category = 'Valor individual' where category = 'Diversão'`;
+  await sql`alter table transactions add column if not exists fatura_total boolean not null default false`;
   await sql`create table if not exists savings (
     id serial primary key, date text not null, amount int not null, note text,
     created_at timestamptz not null default now())`;
@@ -47,6 +48,16 @@ async function migrate(sql: postgres.Sql) {
   await sql`alter table goals add column if not exists photo text`;
   await sql`create table if not exists settings (key text primary key, value text not null)`;
   await sql`create table if not exists login_attempts (ip text primary key, fails int not null, last_at timestamptz not null)`;
+  // Correção única: lançamentos chamados "cartão de crédito" são o total de uma fatura.
+  // Viram crédito, na fatura do mês da data informada (vence dia 23), e aparecem no Cartão.
+  const [mig] = await sql`select 1 from settings where key = 'mig_fatura_total_v1'`;
+  if (!mig) {
+    await sql`update transactions set payment = 'cartao', method = 'credito', fatura_total = true, category = 'Fatura do cartão',
+                month = left(coalesce(purchase_date, due_date), 7), due_date = left(coalesce(purchase_date, due_date), 7) || '-23',
+                purchase_date = null
+              where kind = 'despesa' and inst_total = 1 and description ilike '%cart_o de cr_dito%'`;
+    await sql`insert into settings (key, value) values ('mig_fatura_total_v1', '1') on conflict (key) do nothing`;
+  }
   const [{ count }] = await sql`select count(*)::int as count from profiles`;
   if (count === 0) {
     await sql`insert into profiles (name, color, photo) values
