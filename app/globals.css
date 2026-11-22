@@ -439,3 +439,4 @@ button.profile-chip { font: inherit; color: inherit; cursor: pointer; }
 .row-link { text-decoration: none; color: inherit; } .row-link:hover .row-title { color: var(--accent); }
 .card-group-head { display: flex; align-items: center; gap: 12px; width: 100%; background: none; border: none; padding: 0; font: inherit; color: inherit; cursor: pointer; }
 .card-group-body { margin-top: 8px; padding: 4px 0 0 14px; border-left: 3px solid color-mix(in srgb, var(--pink) 40%, transparent); }
+.rule-toggle { font-size: 13.5px; font-weight: 700; margin-top: -2px; }

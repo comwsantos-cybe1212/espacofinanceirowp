@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { moveSavings, payNow } from '@/app/actions';
+import { moveSavings, payNow, setRuleFlag } from '@/app/actions';
 import { monthLabel } from '@/lib/dates';
 import { brl, parseBRL } from '@/lib/format';
 import type { Tx } from '@/lib/types';
@@ -75,5 +75,18 @@ export function AdvancePicker({ suggestions, all }: { suggestions: Tx[]; all: Tx
       )}
       </div>
     </details>
+  );
+}
+
+/** Caixinha ✓ para incluir ou não uma parte (economizar / adiantar) na divisão do mês */
+export function RuleToggle({ flag, label, on }: { flag: 'sem_guardar' | 'sem_adiantar'; label: string; on: boolean }) {
+  const [checked, setChecked] = useState(on);
+  const [pending, start] = useTransition();
+  return (
+    <label className="check rule-toggle">
+      <input type="checkbox" checked={checked} disabled={pending}
+        onChange={(e) => { const v = e.target.checked; setChecked(v); start(() => setRuleFlag(flag, !v)); }} />
+      {label}
+    </label>
   );
 }

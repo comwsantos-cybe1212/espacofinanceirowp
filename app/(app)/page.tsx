@@ -7,7 +7,7 @@ import InfoTip from '@/components/InfoTip';
 import ListTile from '@/components/ListTile';
 import { IconArrowDown, IconArrowUp, IconCalendar, IconCard, IconPiggy, IconTrendDown, IconWallet } from '@/components/Icons';
 import { ProfileChips } from '@/components/ProfileView';
-import { AdvancePicker, SaveToBox } from '@/components/RuleControls';
+import { AdvancePicker, RuleToggle, SaveToBox } from '@/components/RuleControls';
 import SavingsList from '@/components/SavingsList';
 import TxRow from '@/components/TxRow';
 import { addMonths, dateLabel, isValidMonth, monthLabel } from '@/lib/dates';
@@ -82,54 +82,6 @@ export default async function Inicio({ searchParams }: { searchParams: { m?: str
 
       <ProfileChips items={perfis} />
 
-      {/* O básico: sempre visível */}
-      <div className="grid grid-5 tiles">
-        {isCur ? (
-          <Tile label="Saldo atual" value={s.saldoAtual} color={s.saldoAtual < 0 ? 'var(--red)' : 'var(--green)'} icon={<IconWallet />}
-            info="Quanto vocês têm na conta agora: tudo que já foi recebido menos tudo que já foi pago e o que foi para a caixinha." />
-        ) : (
-          <Tile label="Resultado do mês" value={res.resultado} color={res.resultado < 0 ? 'var(--red)' : 'var(--blue)'} icon={<IconWallet />}
-            info="Tudo que entra no mês − tudo que sai no mês. Sobras de meses anteriores não entram." />
-        )}
-        <ListTile label="Falta receber" value={sum(receber)} color="var(--blue)" icon={<IconArrowUp />} hint={doMes}
-          info="Receitas do mês que ainda não entraram na conta (status Prevista). Toque para ver a lista."
-          title={`Falta receber ${doMes}`} items={receber} profiles={d.profiles} today={d.today} empty="Nada a receber." />
-        <ListTile label="Falta pagar" value={sum(faltaPagar)} color="var(--red)" icon={<IconArrowDown />}
-          hint={<>{valorFatura > 0 ? `inclui ${brl(valorFatura)} do cartão` : doMes}{totalAtrasado > 0 && <span className="neg"> · {brl(totalAtrasado)} atrasado</span>}</>}
-          info="Contas do mês que ainda não foram pagas, incluindo a fatura do cartão que vence no mês e contas atrasadas. Toque para ver a lista."
-          title={`Falta pagar ${doMes}`} items={faltaPagar} profiles={d.profiles} today={d.today} empty="Nada a pagar. 🚀" />
-        <Tile label="Economia" value={s.savingsTotal} color="var(--accent)" icon={<IconPiggy />}
-          info="Tudo que vocês já guardaram na caixinha. Fica separado e não entra no saldo atual." />
-        <ListTile groupCard={false} title={`Fatura do cartão ${doMes}`} items={faturasAbertas.flatMap((f) => f.items.filter((t) => !t.paid))} profiles={d.profiles} today={d.today} empty="Nada a pagar no cartão."
-          label="Fatura do cartão" value={valorFatura} color="var(--pink)" icon={<IconCard />}
-          hint={<>
-            {faturasAbertas.length ? faturasAbertas.map((f) => `${monthLabel(f.month)} vence ${dateLabel(f.due)}${f.status === 'vencida' ? ' (vencida)' : ''}`).join(' · ') : `Nada a pagar ${doMes}`}
-            {proximaFatura && <span className="faint" style={{ display: 'block' }}>próxima: {monthLabel(proximaFatura.month)} {brl(proximaFatura.open)}</span>}
-          </>}
-          info="Fatura do cartão que vence neste mês (dia 23) e ainda não foi paga. Ela já está somada em Falta pagar; aqui aparece separada só para acompanhar o cartão. Compras até o dia 17 entram na fatura do mês; a partir do dia 18, na do mês seguinte, e só contam quando ela vencer." />
-      </div>
-
-      {isCur && s.dividas.length > 0 && (
-        <details className="alert">
-          <summary style={{ cursor: 'pointer', listStyle: 'none' }}>
-            <strong className="neg">⚠ {s.dividas.length} conta(s) atrasada(s) · {brl(s.totalDividas)}</strong> <span className="link">ver e pagar</span>
-          </summary>
-          <div className="list" style={{ marginTop: 10 }}>{s.dividas.map((t) => <TxRow key={t.id} t={t} profiles={d.profiles} today={d.today} />)}</div>
-        </details>
-      )}
-
-      {/* Detalhes: só ao clicar na setinha */}
-      <Fold id="saldos" title="Totais do mês">
-        <div className="grid grid-3 tiles">
-          <Tile label="Total que entra no mês" value={totalEntra} color="var(--green)" icon={<IconArrowUp />} hint={`${brl(recebidoMes)} já recebido`}
-            info="Soma de todas as receitas deste mês: o que já entrou mais o que ainda vai entrar." />
-          <Tile label="Total que sai no mês" value={totalSai} color="var(--red)" icon={<IconTrendDown />} hint={`${brl(gastoMes)} já pago`}
-            info="Soma de todas as despesas deste mês, pagas ou não, incluindo a fatura do cartão que vence este mês." />
-          <Tile label="Resultado do mês" value={totalEntra - totalSai} color={totalEntra - totalSai < 0 ? 'var(--red)' : 'var(--blue)'} icon={<IconCalendar />}
-            info="Tudo que entra no mês menos tudo que sai no mês. Não soma sobras de meses anteriores." />
-        </div>
-      </Fold>
-
       <Fold id="divisao" title="Divisão da sobra" defaultOpen
         right={<span className="muted small" style={{ display: 'inline-flex', alignItems: 'center' }}>
           {rule.base > 0 && <><strong className="pos">{brl(rule.base)}</strong>&nbsp;{partes} =&nbsp;<strong>{brl(rule.terco)}</strong></>}
@@ -165,30 +117,29 @@ export default async function Inicio({ searchParams }: { searchParams: { m?: str
 
             <div className={`third ${rule.semAdiantar ? 'off' : ''}`}>
               <div className="third-head"><span>📅 Adiantar contas<InfoTip inline align="left" text="Valor para pagar antes contas dos próximos meses, como parcelas do cartão. Toque na setinha para ver a sugestão do que adiantar." /></span><span className="third-value">{rule.semAdiantar ? '—' : brl(rule.adiantar.cota)}</span></div>
+              {isCur && <RuleToggle flag="sem_adiantar" label="Adiantar contas este mês" on={!rule.semAdiantar} />}
               {rule.semAdiantar ? (
                 <>
                   <span className="small muted">Desligado este mês<InfoTip inline align="left" text="Sem adiantar contas este mês: o saldo fica dividido só entre guardar e os valores individuais." /></span>
-                  {isCur && <ActionButton action={setRuleFlag.bind(null, 'sem_adiantar', false)} className="btn btn-sm">Voltar a adiantar</ActionButton>}
+
                 </>
               ) : (
                 <>
                   <Meter used={rule.adiantar.usado} total={rule.adiantar.cota} />
                   <span className="small muted">Adiantado {brl(rule.adiantar.usado)} · resta {brl(Math.max(0, rule.adiantar.resta))}</span>
                   {isCur && <AdvancePicker suggestions={rule.adiantar.sugestoes} all={rule.futuras} />}
-                  {isCur && <ActionButton action={setRuleFlag.bind(null, 'sem_adiantar', true)} className="btn btn-sm btn-ghost link-btn"
-                    confirm="Não adiantar contas este mês? O saldo passa a ser dividido entre guardar e os valores individuais.">
-                    Não adiantar contas este mês
-                  </ActionButton>}
+
                 </>
               )}
             </div>
 
             <div className={`third ${rule.semGuardar ? 'off' : ''}`}>
               <div className="third-head"><span>💰 Guardar<InfoTip inline text="Valor para a caixinha (economia). Só sai do saldo atual depois que vocês confirmarem em Guardar na caixinha." /></span><span className="third-value">{rule.semGuardar ? '—' : brl(rule.guardar.cota)}</span></div>
+              {isCur && <RuleToggle flag="sem_guardar" label="Economizar este mês" on={!rule.semGuardar} />}
               {rule.semGuardar ? (
                 <>
                   <span className="small muted">Desligado este mês<InfoTip inline text="Sem economizar este mês: o saldo fica dividido só entre adiantar contas e os valores individuais." /></span>
-                  {isCur && <ActionButton action={setRuleFlag.bind(null, 'sem_guardar', false)} className="btn btn-sm">Voltar a economizar</ActionButton>}
+
                 </>
               ) : (
                 <>
@@ -198,10 +149,7 @@ export default async function Inicio({ searchParams }: { searchParams: { m?: str
                     ? <SaveToBox cents={rule.guardar.resta} saldo={s.saldoAtual} />
                     : <span className="small pos" style={{ fontWeight: 700 }}>✓ Valor do mês guardado na caixinha</span>)}
                   {isCur && <SavingsList compact items={d.savings.filter((m) => m.date.slice(0, 7) === vm)} />}
-                  {isCur && <ActionButton action={setRuleFlag.bind(null, 'sem_guardar', true)} className="btn btn-sm btn-ghost link-btn"
-                    confirm="Não economizar este mês? O saldo passa a ser dividido entre adiantar contas e os valores individuais.">
-                    Não economizar este mês
-                  </ActionButton>}
+
                 </>
               )}
             </div>
@@ -210,6 +158,57 @@ export default async function Inicio({ searchParams }: { searchParams: { m?: str
           {rule.base <= 0 && <p style={{ margin: 0 }} className="small"><strong className="neg">Sem saldo novo para dividir.</strong><InfoTip inline align="left" text="Os valores individuais que sobraram de meses anteriores continuam disponíveis." /></p>}
         </div>
       </Fold>
+
+      <Fold id="resumo" title="Resumo do mês">
+        <div className="grid grid-5 tiles">
+          {isCur ? (
+            <Tile label="Saldo atual" value={s.saldoAtual} color={s.saldoAtual < 0 ? 'var(--red)' : 'var(--green)'} icon={<IconWallet />}
+              info="Quanto vocês têm na conta agora: tudo que já foi recebido menos tudo que já foi pago e o que foi para a caixinha." />
+          ) : (
+            <Tile label="Resultado do mês" value={res.resultado} color={res.resultado < 0 ? 'var(--red)' : 'var(--blue)'} icon={<IconWallet />}
+              info="Tudo que entra no mês − tudo que sai no mês. Sobras de meses anteriores não entram." />
+          )}
+          <ListTile label="Falta receber" value={sum(receber)} color="var(--blue)" icon={<IconArrowUp />} hint={doMes}
+            info="Receitas do mês que ainda não entraram na conta (status Prevista). Toque para ver a lista."
+            title={`Falta receber ${doMes}`} items={receber} profiles={d.profiles} today={d.today} empty="Nada a receber." />
+          <ListTile label="Falta pagar" value={sum(faltaPagar)} color="var(--red)" icon={<IconArrowDown />}
+            hint={<>{valorFatura > 0 ? `inclui ${brl(valorFatura)} do cartão` : doMes}{totalAtrasado > 0 && <span className="neg"> · {brl(totalAtrasado)} atrasado</span>}</>}
+            info="Contas do mês que ainda não foram pagas, incluindo a fatura do cartão que vence no mês e contas atrasadas. Toque para ver a lista."
+            title={`Falta pagar ${doMes}`} items={faltaPagar} profiles={d.profiles} today={d.today} empty="Nada a pagar. 🚀" />
+          <Tile label="Economia" value={s.savingsTotal} color="var(--accent)" icon={<IconPiggy />}
+            info="Tudo que vocês já guardaram na caixinha. Fica separado e não entra no saldo atual." />
+          <ListTile groupCard={false} title={`Fatura do cartão ${doMes}`} items={faturasAbertas.flatMap((f) => f.items.filter((t) => !t.paid))} profiles={d.profiles} today={d.today} empty="Nada a pagar no cartão."
+            label="Fatura do cartão" value={valorFatura} color="var(--pink)" icon={<IconCard />}
+            hint={<>
+              {faturasAbertas.length ? faturasAbertas.map((f) => `${monthLabel(f.month)} vence ${dateLabel(f.due)}${f.status === 'vencida' ? ' (vencida)' : ''}`).join(' · ') : `Nada a pagar ${doMes}`}
+              {proximaFatura && <span className="faint" style={{ display: 'block' }}>próxima: {monthLabel(proximaFatura.month)} {brl(proximaFatura.open)}</span>}
+            </>}
+            info="Fatura do cartão que vence neste mês (dia 23) e ainda não foi paga. Ela já está somada em Falta pagar; aqui aparece separada só para acompanhar o cartão. Compras até o dia 17 entram na fatura do mês; a partir do dia 18, na do mês seguinte, e só contam quando ela vencer." />
+        </div>
+      </Fold>
+
+
+      {isCur && s.dividas.length > 0 && (
+        <details className="alert">
+          <summary style={{ cursor: 'pointer', listStyle: 'none' }}>
+            <strong className="neg">⚠ {s.dividas.length} conta(s) atrasada(s) · {brl(s.totalDividas)}</strong> <span className="link">ver e pagar</span>
+          </summary>
+          <div className="list" style={{ marginTop: 10 }}>{s.dividas.map((t) => <TxRow key={t.id} t={t} profiles={d.profiles} today={d.today} />)}</div>
+        </details>
+      )}
+
+      {/* Detalhes: só ao clicar na setinha */}
+      <Fold id="saldos" title="Totais do mês">
+        <div className="grid grid-3 tiles">
+          <Tile label="Total que entra no mês" value={totalEntra} color="var(--green)" icon={<IconArrowUp />} hint={`${brl(recebidoMes)} já recebido`}
+            info="Soma de todas as receitas deste mês: o que já entrou mais o que ainda vai entrar." />
+          <Tile label="Total que sai no mês" value={totalSai} color="var(--red)" icon={<IconTrendDown />} hint={`${brl(gastoMes)} já pago`}
+            info="Soma de todas as despesas deste mês, pagas ou não, incluindo a fatura do cartão que vence este mês." />
+          <Tile label="Resultado do mês" value={totalEntra - totalSai} color={totalEntra - totalSai < 0 ? 'var(--red)' : 'var(--blue)'} icon={<IconCalendar />}
+            info="Tudo que entra no mês menos tudo que sai no mês. Não soma sobras de meses anteriores." />
+        </div>
+      </Fold>
+
 
       {!isCur && (
         <Fold id="mes-lancamentos" title={`Lançamentos de ${monthLabel(vm, true).toLowerCase()} (${lancMes.length})`}>
