@@ -138,14 +138,15 @@ export default async function Inicio({ searchParams }: { searchParams: { m?: str
             <strong>{brl(rule.base)}</strong> ÷ {rule.partes} = <strong>{brl(rule.terco)}</strong> por parte
             {rule.partes > 1 && <> ({['valor individual', !rule.semAdiantar && 'adiantar contas', !rule.semGuardar && 'guardar'].filter(Boolean).join(', ')})</>}.
             {' '}Valor individual ÷ 2 = <strong>{brl(porPessoa)}</strong> para cada um.
-            {' '}Gastos dos valores individuais, contas adiantadas e o que vai para a caixinha não diminuem a divisão.
+            {' '}Gastos pessoais, contas adiantadas e o que vai para a caixinha não diminuem a divisão.
+            {' '}Se guardar ou adiantar passar da sua parte, o excedente sai das outras partes (ex.: guardar tudo zera adiantar e valores individuais).
           </>} />
         </span>}>
         <div className="stack" style={{ gap: 12 }}>
           {(
           <div className="grid grid-3">
             <div className="third">
-              <div className="third-head"><span>🙋 Valores individuais<InfoTip inline align="left" text={`${brl(rule.terco)} ÷ 2 = ${brl(porPessoa)} para cada um gastar sem consultar o outro. O que não for gasto continua no valor atual no mês seguinte. Gastos lançados na categoria "Valor individual" saem daqui.`} /></span><span className="third-value">{brl(rule.terco)}</span></div>
+              <div className="third-head"><span>🙋 Valores individuais<InfoTip inline align="left" text={`${brl(rule.valorIndividual)} ÷ 2 = ${brl(porPessoa)} para cada um gastar sem consultar o outro. Despesas marcadas como Pessoal saem do valor de quem gastou. O que não for gasto continua no valor atual no mês seguinte.`} /></span><span className="third-value">{brl(rule.valorIndividual)}</span></div>
               {rule.individuais.map((x) => (
                 <div key={x.profile.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <Avatar profile={x.profile} size={26} />
@@ -162,7 +163,7 @@ export default async function Inicio({ searchParams }: { searchParams: { m?: str
             </div>
 
             <div className={`third ${rule.semAdiantar ? 'off' : ''}`}>
-              <div className="third-head"><span>📅 Adiantar contas<InfoTip inline align="left" text="Valor para pagar antes contas dos próximos meses, como parcelas do cartão. Toque na setinha para ver a sugestão do que adiantar." /></span><span className="third-value">{rule.semAdiantar ? '—' : brl(rule.terco)}</span></div>
+              <div className="third-head"><span>📅 Adiantar contas<InfoTip inline align="left" text="Valor para pagar antes contas dos próximos meses, como parcelas do cartão. Toque na setinha para ver a sugestão do que adiantar." /></span><span className="third-value">{rule.semAdiantar ? '—' : brl(rule.adiantar.cota)}</span></div>
               {rule.semAdiantar ? (
                 <>
                   <span className="small muted">Desligado este mês<InfoTip inline align="left" text="Sem adiantar contas este mês: o saldo fica dividido só entre guardar e os valores individuais." /></span>
@@ -182,7 +183,7 @@ export default async function Inicio({ searchParams }: { searchParams: { m?: str
             </div>
 
             <div className={`third ${rule.semGuardar ? 'off' : ''}`}>
-              <div className="third-head"><span>💰 Guardar<InfoTip inline text="Valor para a caixinha (economia). Só sai do saldo atual depois que vocês confirmarem em Guardar na caixinha." /></span><span className="third-value">{rule.semGuardar ? '—' : brl(rule.terco)}</span></div>
+              <div className="third-head"><span>💰 Guardar<InfoTip inline text="Valor para a caixinha (economia). Só sai do saldo atual depois que vocês confirmarem em Guardar na caixinha." /></span><span className="third-value">{rule.semGuardar ? '—' : brl(rule.guardar.cota)}</span></div>
               {rule.semGuardar ? (
                 <>
                   <span className="small muted">Desligado este mês<InfoTip inline text="Sem economizar este mês: o saldo fica dividido só entre adiantar contas e os valores individuais." /></span>

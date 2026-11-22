@@ -35,6 +35,8 @@ function Form({ profiles, tx, onDone }: { profiles: Profile[]; tx?: Tx; onDone: 
   const isCard = kind === 'despesa' && method === 'credito';
   const lockedInstallment = !!tx && tx.payment === 'cartao' && tx.inst_total > 1;
   const [invoiceTotal, setInvoiceTotal] = useState(!!tx?.fatura_total);
+  const [gasto, setGasto] = useState<'compartilhado' | 'pessoal'>(tx?.pessoal || tx?.category === 'Valor individual' ? 'pessoal' : 'compartilhado');
+  const [who, setWho] = useState(tx ? String(tx.profile_id ?? 0) : '0');
   const asInvoice = isCard && !lockedInstallment && invoiceTotal;
   const parcelado = !edit && isCard && !asInvoice && installments > 1;
   const isSalario = kind === 'receita' && subtype === 'salario';
@@ -94,7 +96,7 @@ function Form({ profiles, tx, onDone }: { profiles: Profile[]; tx?: Tx; onDone: 
 
       <label className="field">
         <span>Responsável *</span>
-        <select className="input" name="profile_id" defaultValue={tx ? String(tx.profile_id ?? 0) : '0'}>
+        <select className="input" name="profile_id" value={who} onChange={(e) => setWho(e.target.value)}>
           <option value="0">Nós</option>
           {profiles.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
@@ -117,6 +119,22 @@ function Form({ profiles, tx, onDone }: { profiles: Profile[]; tx?: Tx; onDone: 
           </select>
         )}
       </label>
+
+      {kind === 'despesa' && (
+        <div className="field full">
+          <span>Tipo de gasto
+            <InfoTip inline align="left" text={'Pessoal: sai do valor individual de quem gastou (se for de "Nós", metade de cada). Compartilhado: conta da casa, não mexe no valor individual.'} />
+          </span>
+          <input type="hidden" name="gasto" value={gasto} />
+          <div className="type-pick two">
+            <button type="button" className={gasto === 'compartilhado' ? 'on' : ''} onClick={() => setGasto('compartilhado')}>🏠 Compartilhado</button>
+            <button type="button" className={gasto === 'pessoal' ? 'on' : ''} onClick={() => setGasto('pessoal')}>
+              🙋 Pessoal{gasto === 'pessoal' && who !== '0' ? ` · ${profiles.find((p) => String(p.id) === who)?.name ?? ''}` : ''}
+            </button>
+          </div>
+          {gasto === 'pessoal' && <span className="faint small">Sai do valor individual de {who === '0' ? 'cada um (metade de cada)' : profiles.find((p) => String(p.id) === who)?.name}.</span>}
+        </div>
+      )}
 
       {kind === 'despesa' && (
         <label className="field">

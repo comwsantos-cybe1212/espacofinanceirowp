@@ -14,7 +14,7 @@ const str = (f: FormData, k: string) => String(f.get(k) ?? '').trim();
 
 type NewRow = {
   profile_id: number | null; kind: string; subtype: string | null; category: string; description: string;
-  amount: number; due_date: string; month: string; recurrence: string; payment: string; method: string | null; fatura_total: boolean; group_id: string | null;
+  amount: number; due_date: string; month: string; recurrence: string; payment: string; method: string | null; fatura_total: boolean; pessoal: boolean; group_id: string | null;
   inst_no: number; inst_total: number; purchase_date: string | null; paid: boolean; paid_at: string | null;
 };
 
@@ -26,7 +26,7 @@ function split(total: number, n: number): number[] {
 
 type Parsed = {
   kind: 'receita' | 'despesa'; description: string; amount: number; date: string; profileId: number | null;
-  subtype: string | null; category: string; method: string; paid: boolean;
+  subtype: string | null; category: string; method: string; paid: boolean; pessoal: boolean;
 };
 
 /** Lê e valida os campos comuns do formulário de lançamento */
@@ -50,7 +50,9 @@ function parseForm(f: FormData): Parsed | string {
     if (!EXPENSE_CATEGORIES.some((c) => c.value === category)) return 'Escolha uma categoria.';
   }
   const method = kind === 'despesa' && (str(f, 'method') === 'credito' || category === INVOICE_CATEGORY) ? 'credito' : 'debito';
-  return { kind, description, amount, date, profileId: Number(str(f, 'profile_id')) || null, subtype, category, method, paid: str(f, 'status') === 'pago' };
+  // Pessoal: sai do valor individual de quem gastou. Compartilhado: conta da casa.
+  const pessoal = kind === 'despesa' && (str(f, 'gasto') === 'pessoal' || category === 'Valor individual');
+  return { kind, description, amount, date, profileId: Number(str(f, 'profile_id')) || null, subtype, category, method, paid: str(f, 'status') === 'pago', pessoal };
 }
 
 export async function createTransaction(_: ActionResult | null, f: FormData): Promise<ActionResult> {
@@ -70,7 +72,7 @@ export async function createTransaction(_: ActionResult | null, f: FormData): Pr
   const total = installments > 1 && str(f, 'amount_mode') === 'parcela' ? p.amount * installments : p.amount;
 
   const rows: NewRow[] = [];
-  const common = { profile_id: p.profileId, kind: p.kind, subtype: p.subtype, category: p.category, description: p.description, recurrence, payment, method: p.kind === 'despesa' ? p.method : null, fatura_total: faturaTotal };
+  const common = { profile_id: p.profileId, kind: p.kind, subtype: p.subtype, category: p.category, description: p.description, recurrence, payment, method: p.kind === 'despesa' ? p.method : null, fatura_total: faturaTotal, pessoal: p.pessoal };
 
   if (payment === 'cartao' && installments > 1) {
     // A 1ª parcela segue a regra do dia 17; as demais caem uma por fatura
@@ -140,7 +142,7 @@ export async function updateTransaction(_: ActionResult | null, f: FormData): Pr
   const paidAt = paid ? (t.paid_at ?? (pl.due <= today ? pl.due : today)) : null;
 
   await sql`update transactions set description = ${p.description}, amount = ${p.amount}, category = ${p.category}, subtype = ${p.subtype},
-    profile_id = ${p.profileId}, method = ${pl.method}, payment = ${pl.payment}, due_date = ${pl.due}, month = ${pl.month}, purchase_date = ${pl.purchase},
+    profile_id = ${p.profileId}, pessoal = ${p.pessoal}, method = ${pl.method}, payment = ${pl.payment}, due_date = ${pl.due}, month = ${pl.month}, purchase_date = ${pl.purchase},
     paid = ${paid}, paid_at = ${paidAt}, fatura_total = ${pl.payment === 'cartao' && !parcelado && asInvoice} where id = ${id}`;
 
   // Parcelado: mudar a data da compra ou a forma de pagamento reposiciona as outras parcelas do alcance escolhido
@@ -158,7 +160,7 @@ export async function updateTransaction(_: ActionResult | null, f: FormData): Pr
   if ((t.group_id || t.recurrence === 'fixa') && (scope === 'proximos' || scope === 'todos')) {
     const desde = scope === 'proximos' ? t.month : '0000-00';
     await sql`update transactions set description = ${p.description}, amount = ${p.amount}, category = ${p.category}, subtype = ${p.subtype},
-      profile_id = ${p.profileId}
+      profile_id = ${p.profileId}, pessoal = ${p.pessoal}
       where id <> ${id} and inst_total = ${t.inst_total} and month > ${scope === 'proximos' ? desde : '0000-00'}
         and (${t.group_id ? sql`group_id = ${t.group_id}` : sql`false`}
           or (${t.recurrence === 'fixa'} and recurrence = 'fixa' and kind = ${t.kind}

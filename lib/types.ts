@@ -18,6 +18,8 @@ export type Tx = {
   method: string | null;
   /** Lançado como o valor total de uma fatura (entra na fatura do mês da data, sem a regra do dia 17) */
   fatura_total: boolean;
+  /** Gasto pessoal: sai do valor individual de quem gastou (de "Nós", metade de cada) */
+  pessoal: boolean;
   /** Compra no cartão que já está dentro de um "total da fatura" lançado no mesmo mês (aparece, mas não soma) */
   covered?: boolean;
   group_id: string | null;

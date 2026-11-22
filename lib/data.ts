@@ -8,13 +8,16 @@ export async function loadData(): Promise<AppData> {
   const d = await readData();
   // Divisão automática: guarda o valor do mês atual (para os valores individuais acumularem nos meses seguintes)
   const mes = monthOf(d.today);
-  const base = ruleOfThree(d).basePrevia;
-  if (d.divisoes[mes] !== base) {
+  const r = ruleOfThree(d);
+  const base = r.basePrevia;
+  const indiv = String(r.valorIndividual);
+  if (d.divisoes[mes] !== base || d.settings[`indiv:${mes}`] !== indiv) {
     const sql = await db();
-    await sql`insert into settings (key, value) values (${`divisao:${mes}`}, ${String(base)})
+    await sql`insert into settings (key, value) values (${`divisao:${mes}`}, ${String(base)}), (${`indiv:${mes}`}, ${indiv})
               on conflict (key) do update set value = excluded.value`;
     d.divisoes[mes] = base;
     d.settings[`divisao:${mes}`] = String(base);
+    d.settings[`indiv:${mes}`] = indiv;
   }
   return d;
 }
@@ -23,7 +26,7 @@ async function readData(): Promise<AppData> {
   const sql = await db();
   const [profiles, txs, savings, settings, goals] = await Promise.all([
     sql<Profile[]>`select id, name, color, photo from profiles order by id`,
-    sql<Tx[]>`select id, profile_id, kind, subtype, category, description, amount, due_date, month, recurrence, payment, method, fatura_total,
+    sql<Tx[]>`select id, profile_id, kind, subtype, category, description, amount, due_date, month, recurrence, payment, method, fatura_total, pessoal,
                group_id, inst_no, inst_total, purchase_date, paid, paid_at from transactions order by due_date, id`,
     sql<SavingMove[]>`select id, date, amount, note from savings order by date desc, id desc`,
     sql<{ key: string; value: string }[]>`select key, value from settings`,

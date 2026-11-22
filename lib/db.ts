@@ -39,6 +39,7 @@ async function migrate(sql: postgres.Sql) {
   await sql`alter table transactions add column if not exists method text`; // debito | pix | dinheiro | credito
   await sql`update transactions set category = 'Valor individual' where category = 'Diversão'`;
   await sql`alter table transactions add column if not exists fatura_total boolean not null default false`;
+  await sql`alter table transactions add column if not exists pessoal boolean not null default false`; // sai do valor individual
   await sql`create table if not exists savings (
     id serial primary key, date text not null, amount int not null, note text,
     created_at timestamptz not null default now())`;
