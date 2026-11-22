@@ -38,8 +38,11 @@ async function readData(): Promise<AppData> {
     goals: [...goals],
     // Meses em que foi lançado o total da fatura: as compras do cartão desse mês já estão dentro dele
     ...(() => {
-      const comTotal = new Set(txs.filter((t) => t.kind === 'despesa' && t.payment === 'cartao' && t.fatura_total).map((t) => t.month));
-      const all = txs.map((t) => ({ ...t, covered: t.kind === 'despesa' && t.payment === 'cartao' && !t.fatura_total && comTotal.has(t.month) }));
+      // Uma compra só está "no total da fatura" se foi lançada ANTES do total daquele mês
+      // (os ids crescem na ordem em que os lançamentos são criados). Compras lançadas depois somam à fatura.
+      const ultimoTotal = new Map<string, number>();
+      for (const t of txs) if (t.kind === 'despesa' && t.payment === 'cartao' && t.fatura_total) ultimoTotal.set(t.month, Math.max(ultimoTotal.get(t.month) ?? 0, t.id));
+      const all = txs.map((t) => ({ ...t, covered: t.kind === 'despesa' && t.payment === 'cartao' && !t.fatura_total && (ultimoTotal.get(t.month) ?? 0) > t.id }));
       return { allTxs: all, txs: all.filter((t) => !t.covered) };
     })(),
     savings: [...savings],
