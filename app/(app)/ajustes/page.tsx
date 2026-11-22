@@ -1,6 +1,7 @@
 import { deleteSaving } from '@/app/actions';
 import ActionButton from '@/components/ActionButton';
 import InfoTip from '@/components/InfoTip';
+import SavingsList from '@/components/SavingsList';
 import { ClearDataForm, OpeningBalanceForm, SavingsForm } from '@/components/Forms';
 import { IconTrash } from '@/components/Icons';
 import ThemeToggle from '@/components/ThemeToggle';
@@ -31,16 +32,7 @@ export default async function Ajustes() {
           <SavingsForm />
           <div className="list" style={{ marginTop: 12 }}>
             {d.savings.length === 0 && <div className="empty">Nenhuma movimentação ainda.</div>}
-            {d.savings.slice(0, 30).map((m) => (
-              <div className="row" key={m.id}>
-                <div className="row-main">
-                  <div className="row-title">{m.amount >= 0 ? 'Guardado' : 'Resgatado'}{m.note ? ` · ${m.note}` : ''}</div>
-                  <div className="row-meta">{dateLabel(m.date)}/{m.date.slice(0, 4)}</div>
-                </div>
-                <div className={`row-amount ${m.amount >= 0 ? 'pos' : 'neg'}`}>{m.amount >= 0 ? '+' : '−'} {brl(Math.abs(m.amount))}</div>
-                <ActionButton action={deleteSaving.bind(null, m.id)} className="btn btn-sm icon-btn btn-danger" title="Excluir" confirm="Excluir esta movimentação?"><IconTrash /></ActionButton>
-              </div>
-            ))}
+            <SavingsList items={d.savings.slice(0, 30)} />
           </div>
         </div>
       </div>

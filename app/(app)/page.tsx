@@ -8,6 +8,7 @@ import ListTile from '@/components/ListTile';
 import { IconArrowDown, IconArrowUp, IconCalendar, IconCard, IconPiggy, IconTrendDown, IconWallet } from '@/components/Icons';
 import { ProfileChips } from '@/components/ProfileView';
 import { AdvancePicker, SaveToBox } from '@/components/RuleControls';
+import SavingsList from '@/components/SavingsList';
 import TxRow from '@/components/TxRow';
 import { addMonths, dateLabel, isValidMonth, monthLabel } from '@/lib/dates';
 import MonthPicker from '@/components/MonthPicker';
@@ -196,6 +197,7 @@ export default async function Inicio({ searchParams }: { searchParams: { m?: str
                   {isCur && (rule.guardar.resta > 0
                     ? <SaveToBox cents={rule.guardar.resta} saldo={s.saldoAtual} />
                     : <span className="small pos" style={{ fontWeight: 700 }}>✓ Valor do mês guardado na caixinha</span>)}
+                  {isCur && <SavingsList compact items={d.savings.filter((m) => m.date.slice(0, 7) === vm)} />}
                   {isCur && <ActionButton action={setRuleFlag.bind(null, 'sem_guardar', true)} className="btn btn-sm btn-ghost link-btn"
                     confirm="Não economizar este mês? O saldo passa a ser dividido entre adiantar contas e os valores individuais.">
                     Não economizar este mês

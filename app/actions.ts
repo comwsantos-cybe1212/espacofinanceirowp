@@ -258,6 +258,17 @@ export async function deleteSaving(id: number) {
   refresh();
 }
 
+/** Corrige o valor de algo guardado na caixinha (mantém se era guardar ou resgatar) */
+export async function updateSaving(id: number, value: string): Promise<ActionResult> {
+  await requireAuth();
+  const cents = parseBRL(value);
+  if (!Number.isFinite(cents) || cents <= 0) return { ok: false, error: 'Informe um valor válido.' };
+  const sql = await db();
+  await sql`update savings set amount = case when amount < 0 then ${-cents}::int else ${cents}::int end where id = ${id}`;
+  refresh();
+  return { ok: true };
+}
+
 export async function updateProfile(_: ActionResult | null, f: FormData): Promise<ActionResult> {
   await requireAuth();
   const id = Number(str(f, 'id'));
