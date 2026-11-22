@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { markSaved, moveSavings, payNow, setRuleFlag, setSavingPlan } from '@/app/actions';
+import { markSaved, moveSavings, payNow, setRuleFlag, setSavingPlan, togglePaid } from '@/app/actions';
+import { EditTransaction } from './TransactionForm';
 import { monthLabel } from '@/lib/dates';
 import { brl, parseBRL } from '@/lib/format';
-import type { Tx } from '@/lib/types';
+import type { Profile, Tx } from '@/lib/types';
 
 /** "Guardar na caixinha": só sai do saldo depois da confirmação */
 export function SaveToBox({ cents, saldo }: { cents: number; saldo: number }) {
@@ -124,6 +125,32 @@ export function SavingPlan({ month, cota, plano, guardado, futuro }: { month: st
       </label>
       {futuro && !economizado && <span className="faint small">Dá para marcar quando o mês chegar.</span>}
       {msg && <span className={msg.endsWith('✓') ? 'pos small' : 'error'}>{msg}</span>}
+    </div>
+  );
+}
+
+/** Contas adiantadas no mês: ver quais foram, desfazer ou editar (para simular a organização) */
+export function AdvancedList({ items, profiles }: { items: Tx[]; profiles: Profile[] }) {
+  const [pending, start] = useTransition();
+  if (!items.length) return null;
+  return (
+    <div className="stack" style={{ gap: 4 }}>
+      <span className="small" style={{ fontWeight: 700 }}>Adiantadas ({items.length}) · {brl(items.reduce((a, t) => a + t.amount, 0))}</span>
+      <div className="list">
+        {items.map((t) => (
+          <div className="row" key={t.id} style={{ padding: '6px 0' }}>
+            <div className="row-main">
+              <div className="row-title small">{t.description}{t.inst_total > 1 && <span className="faint"> {t.inst_no}/{t.inst_total}</span>}</div>
+              <div className="row-meta">era de {monthLabel(t.month)} · {brl(t.amount)}</div>
+            </div>
+            <EditTransaction tx={t} profiles={profiles} />
+            <button type="button" className="btn btn-sm" disabled={pending} title="Desfazer o adiantamento"
+              onClick={() => { if (window.confirm(`Desfazer o adiantamento de "${t.description}"? Ela volta a ficar em aberto em ${monthLabel(t.month)}.`)) start(() => togglePaid(t.id)); }}>
+              ↩ Desfazer
+            </button>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

@@ -7,7 +7,7 @@ import InfoTip from '@/components/InfoTip';
 import ListTile from '@/components/ListTile';
 import { IconArrowDown, IconArrowUp, IconCalendar, IconCard, IconPiggy, IconTrendDown, IconWallet } from '@/components/Icons';
 import { ProfileChips } from '@/components/ProfileView';
-import { AdvancePicker, RuleToggle, SavingPlan } from '@/components/RuleControls';
+import { AdvancedList, AdvancePicker, RuleToggle, SavingPlan } from '@/components/RuleControls';
 import SavingsList from '@/components/SavingsList';
 import TxRow from '@/components/TxRow';
 import { addMonths, dateLabel, isValidMonth, monthLabel } from '@/lib/dates';
@@ -127,6 +127,7 @@ export default async function Inicio({ searchParams }: { searchParams: { m?: str
                 <>
                   <Meter used={rule.adiantar.usado} total={rule.adiantar.cota} />
                   <span className="small muted">Adiantado {brl(rule.adiantar.usado)} · resta {brl(Math.max(0, rule.adiantar.resta))}</span>
+                  <AdvancedList profiles={d.profiles} items={d.txs.filter((t) => t.kind === 'despesa' && t.paid && t.paid_at?.slice(0, 7) === vm && t.month > vm)} />
                   <AdvancePicker suggestions={rule.adiantar.sugestoes} all={rule.futuras} />
 
                 </>
