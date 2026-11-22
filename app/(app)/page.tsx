@@ -7,7 +7,7 @@ import InfoTip from '@/components/InfoTip';
 import ListTile from '@/components/ListTile';
 import { IconArrowDown, IconArrowUp, IconCalendar, IconCard, IconPiggy, IconTrendDown, IconWallet } from '@/components/Icons';
 import { ProfileChips } from '@/components/ProfileView';
-import { AdvancePicker, RuleToggle, SaveToBox } from '@/components/RuleControls';
+import { AdvancePicker, RuleToggle, SavingPlan } from '@/components/RuleControls';
 import SavingsList from '@/components/SavingsList';
 import TxRow from '@/components/TxRow';
 import { addMonths, dateLabel, isValidMonth, monthLabel } from '@/lib/dates';
@@ -117,7 +117,7 @@ export default async function Inicio({ searchParams }: { searchParams: { m?: str
 
             <div className={`third ${rule.semAdiantar ? 'off' : ''}`}>
               <div className="third-head"><span>📅 Adiantar contas<InfoTip inline align="left" text="Valor para pagar antes contas dos próximos meses, como parcelas do cartão. Toque na setinha para ver a sugestão do que adiantar." /></span><span className="third-value">{rule.semAdiantar ? '—' : brl(rule.adiantar.cota)}</span></div>
-              {isCur && <RuleToggle flag="sem_adiantar" label="Adiantar contas este mês" on={!rule.semAdiantar} />}
+              <RuleToggle key={`a-${vm}`} flag="sem_adiantar" month={vm} label={`Adiantar contas ${doMes}`} on={!rule.semAdiantar} />
               {rule.semAdiantar ? (
                 <>
                   <span className="small muted">Desligado este mês<InfoTip inline align="left" text="Sem adiantar contas este mês: o saldo fica dividido só entre guardar e os valores individuais." /></span>
@@ -127,7 +127,7 @@ export default async function Inicio({ searchParams }: { searchParams: { m?: str
                 <>
                   <Meter used={rule.adiantar.usado} total={rule.adiantar.cota} />
                   <span className="small muted">Adiantado {brl(rule.adiantar.usado)} · resta {brl(Math.max(0, rule.adiantar.resta))}</span>
-                  {isCur && <AdvancePicker suggestions={rule.adiantar.sugestoes} all={rule.futuras} />}
+                  <AdvancePicker suggestions={rule.adiantar.sugestoes} all={rule.futuras} />
 
                 </>
               )}
@@ -135,7 +135,7 @@ export default async function Inicio({ searchParams }: { searchParams: { m?: str
 
             <div className={`third ${rule.semGuardar ? 'off' : ''}`}>
               <div className="third-head"><span>💰 Guardar<InfoTip inline text="Valor para a caixinha (economia). Só sai do saldo atual depois que vocês confirmarem em Guardar na caixinha." /></span><span className="third-value">{rule.semGuardar ? '—' : brl(rule.guardar.cota)}</span></div>
-              {isCur && <RuleToggle flag="sem_guardar" label="Economizar este mês" on={!rule.semGuardar} />}
+              <RuleToggle key={`g-${vm}`} flag="sem_guardar" month={vm} label={`Economizar ${doMes}`} on={!rule.semGuardar} />
               {rule.semGuardar ? (
                 <>
                   <span className="small muted">Desligado este mês<InfoTip inline text="Sem economizar este mês: o saldo fica dividido só entre adiantar contas e os valores individuais." /></span>
@@ -145,10 +145,8 @@ export default async function Inicio({ searchParams }: { searchParams: { m?: str
                 <>
                   <Meter used={rule.guardar.usado} total={rule.guardar.cota} />
                   <span className="small muted">Na caixinha {doMes}: {brl(rule.guardar.usado)}</span>
-                  {isCur && (rule.guardar.resta > 0
-                    ? <SaveToBox cents={rule.guardar.resta} saldo={s.saldoAtual} />
-                    : <span className="small pos" style={{ fontWeight: 700 }}>✓ Valor do mês guardado na caixinha</span>)}
-                  {isCur && <SavingsList compact items={d.savings.filter((m) => m.date.slice(0, 7) === vm)} />}
+                  <SavingPlan key={`p-${vm}-${rule.guardar.plano ?? 'auto'}-${rule.guardar.usado}`} month={vm} cota={rule.guardar.cota} plano={rule.guardar.plano} guardado={rule.guardar.usado} futuro={futuro} />
+                  <SavingsList compact items={d.savings.filter((m) => m.date.slice(0, 7) === vm)} />
 
                 </>
               )}

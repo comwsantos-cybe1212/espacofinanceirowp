@@ -208,7 +208,7 @@ export type RuleOfThree = {
   futuras: Tx[]; // todas as contas futuras que podem ser adiantadas
   individuais: Individual[];
   adiantar: { cota: number; usado: number; resta: number; sugestoes: Tx[] };
-  guardar: { cota: number; usado: number; resta: number };
+  guardar: { cota: number; usado: number; resta: number; plano: number | null };
 };
 
 const flagOn = (d: AppData, flag: string, month: string) => d.settings[`${flag}:${month}`] === '1';
@@ -291,8 +291,11 @@ export function ruleOfThree(d: AppData, month?: string): RuleOfThree {
   // Se guardar ou adiantar usar MAIS que a sua parte, o excedente sai das outras partes
   type Parte = 'I' | 'A' | 'G';
   const ativas: Parte[] = ['I', ...(semAdiantar ? [] : ['A' as Parte]), ...(semGuardar ? [] : ['G' as Parte])];
-  const uso: Record<Parte, number> = { I: 0, A: usadoAdiantar, G: Math.max(0, guardadoMes) };
-  const estouradas = ativas.filter((x) => x !== 'I' && uso[x] > terco);
+  // Economia estipulada para o mês (se houver) vira a parte Guardar; o que já foi guardado vale se for maior
+  const planoRaw = d.settings[`eco:${cur}`];
+  const plano = planoRaw !== undefined ? Math.max(0, Number(planoRaw) || 0) : null;
+  const uso: Record<Parte, number> = { I: 0, A: usadoAdiantar, G: Math.max(0, guardadoMes, plano ?? 0) };
+  const estouradas = ativas.filter((x) => x !== 'I' && (uso[x] > terco || (x === 'G' && plano !== null)));
   const valor: Record<Parte, number> = { I: 0, A: 0, G: 0 };
   if (estouradas.length) {
     const restante = Math.max(0, base - estouradas.reduce((a, x) => a + uso[x], 0));
@@ -330,7 +333,7 @@ export function ruleOfThree(d: AppData, month?: string): RuleOfThree {
     futuras: [...futuras].sort((a, b) => a.due_date.localeCompare(b.due_date) || a.description.localeCompare(b.description)),
     individuais,
     adiantar: { cota: cotaAdiantar, usado: usadoAdiantar, resta: restaAdiantar, sugestoes },
-    guardar: { cota: cotaGuardar, usado: guardadoMes, resta: cotaGuardar - guardadoMes },
+    guardar: { cota: cotaGuardar, usado: guardadoMes, resta: cotaGuardar - guardadoMes, plano },
   };
 }
 

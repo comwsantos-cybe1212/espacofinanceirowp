@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { moveSavings, payNow, setRuleFlag } from '@/app/actions';
+import { markSaved, moveSavings, payNow, setRuleFlag, setSavingPlan } from '@/app/actions';
 import { monthLabel } from '@/lib/dates';
 import { brl, parseBRL } from '@/lib/format';
 import type { Tx } from '@/lib/types';
@@ -79,14 +79,51 @@ export function AdvancePicker({ suggestions, all }: { suggestions: Tx[]; all: Tx
 }
 
 /** Caixinha ✓ para incluir ou não uma parte (economizar / adiantar) na divisão do mês */
-export function RuleToggle({ flag, label, on }: { flag: 'sem_guardar' | 'sem_adiantar'; label: string; on: boolean }) {
+export function RuleToggle({ flag, label, on, month }: { flag: 'sem_guardar' | 'sem_adiantar'; label: string; on: boolean; month?: string }) {
   const [checked, setChecked] = useState(on);
   const [pending, start] = useTransition();
   return (
     <label className="check rule-toggle">
       <input type="checkbox" checked={checked} disabled={pending}
-        onChange={(e) => { const v = e.target.checked; setChecked(v); start(() => setRuleFlag(flag, !v)); }} />
+        onChange={(e) => { const v = e.target.checked; setChecked(v); start(() => setRuleFlag(flag, !v, month)); }} />
       {label}
     </label>
+  );
+}
+
+/** Economia do mês: estipular o valor e marcar ☑ se foi economizado */
+export function SavingPlan({ month, cota, plano, guardado, futuro }: { month: string; cota: number; plano: number | null; guardado: number; futuro: boolean }) {
+  const [value, setValue] = useState(((plano ?? cota) / 100).toFixed(2).replace('.', ','));
+  const [msg, setMsg] = useState('');
+  const [pending, start] = useTransition();
+  const economizado = guardado > 0;
+  const [checked, setChecked] = useState(economizado);
+  return (
+    <div className="stack" style={{ gap: 8 }}>
+      <label className="field" style={{ gap: 4 }}>
+        <span>Valor para economizar {plano === null && <span className="faint">(automático: ⅓)</span>}</span>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <input className="input" value={value} onChange={(e) => setValue(e.target.value)} inputMode="decimal" style={{ padding: '7px 10px' }} aria-label="Valor para economizar" />
+          <button type="button" className="btn btn-sm" disabled={pending}
+            onClick={() => start(async () => { const r = await setSavingPlan(month, value); setMsg(r.ok ? 'Valor definido ✓' : r.error ?? 'Erro'); })}>Definir</button>
+        </div>
+      </label>
+      <label className="check rule-toggle" title={futuro ? 'Marque quando o mês chegar' : undefined}>
+        <input type="checkbox" checked={checked} disabled={pending || (futuro && !economizado)}
+          onChange={(e) => {
+            const v = e.target.checked;
+            const cents = parseBRL(value);
+            const txt = v
+              ? `Confirmar que ${Number.isFinite(cents) ? brl(cents) : value} foi economizado?\nO valor sai do saldo atual e vai para a economia.`
+              : `Desmarcar? O que foi guardado neste mês (${brl(guardado)}) volta para o saldo atual.`;
+            if (!window.confirm(txt)) return;
+            setChecked(v);
+            start(async () => { const r = await markSaved(month, v, value); if (!r.ok) { setChecked(!v); setMsg(r.error ?? 'Erro'); } else setMsg(''); });
+          }} />
+        Economizado {economizado && <span className="pos">· {brl(guardado)} na caixinha</span>}
+      </label>
+      {futuro && !economizado && <span className="faint small">Dá para marcar quando o mês chegar.</span>}
+      {msg && <span className={msg.endsWith('✓') ? 'pos small' : 'error'}>{msg}</span>}
+    </div>
   );
 }

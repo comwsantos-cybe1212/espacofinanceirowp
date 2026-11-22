@@ -182,13 +182,49 @@ export async function deleteMany(ids: number[]) {
 }
 
 /** Liga/desliga "não economizar" ou "não adiantar contas" no mês atual */
-export async function setRuleFlag(flag: 'sem_guardar' | 'sem_adiantar', on: boolean) {
+export async function setRuleFlag(flag: 'sem_guardar' | 'sem_adiantar', on: boolean, month?: string) {
   await requireAuth();
-  const key = `${flag}:${monthOf(todayBR())}`;
+  const m = month && /^\d{4}-\d{2}$/.test(month) ? month : monthOf(todayBR());
+  const key = `${flag}:${m}`;
   const sql = await db();
   if (on) await sql`insert into settings (key, value) values (${key}, '1') on conflict (key) do update set value = '1'`;
   else await sql`delete from settings where key = ${key}`;
   refresh();
+}
+
+/** Estipula quanto economizar no mês (vazio = volta ao ⅓ automático) */
+export async function setSavingPlan(month: string, value: string): Promise<ActionResult> {
+  await requireAuth();
+  if (!/^\d{4}-\d{2}$/.test(month)) return { ok: false, error: 'Mês inválido.' };
+  const sql = await db();
+  if (!value.trim()) {
+    await sql`delete from settings where key = ${`eco:${month}`}`;
+  } else {
+    const cents = parseBRL(value);
+    if (!Number.isFinite(cents) || cents < 0) return { ok: false, error: 'Informe um valor válido.' };
+    await sql`insert into settings (key, value) values (${`eco:${month}`}, ${String(cents)}) on conflict (key) do update set value = excluded.value`;
+  }
+  refresh();
+  return { ok: true };
+}
+
+/** Marca se a economia do mês foi feita: guarda o valor na caixinha, ou desfaz o que foi guardado no mês */
+export async function markSaved(month: string, saved: boolean, value: string): Promise<ActionResult> {
+  await requireAuth();
+  if (!/^\d{4}-\d{2}$/.test(month)) return { ok: false, error: 'Mês inválido.' };
+  const sql = await db();
+  if (saved) {
+    const cents = parseBRL(value);
+    if (!Number.isFinite(cents) || cents <= 0) return { ok: false, error: 'Informe o valor economizado.' };
+    const today = todayBR();
+    const date = month === monthOf(today) ? today : month < monthOf(today) ? `${month}-28` : `${month}-01`;
+    await sql`insert into savings (date, amount, note) values (${date}, ${cents}, 'Economia do mês')`;
+    await sql`insert into settings (key, value) values (${`eco:${month}`}, ${String(cents)}) on conflict (key) do update set value = excluded.value`;
+  } else {
+    await sql`delete from savings where amount > 0 and left(date, 7) = ${month}`;
+  }
+  refresh();
+  return { ok: true };
 }
 
 export async function togglePaid(id: number) {
