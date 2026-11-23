@@ -7,12 +7,13 @@ import InfoTip from '@/components/InfoTip';
 import ListTile from '@/components/ListTile';
 import { IconArrowDown, IconArrowUp, IconCalendar, IconCard, IconPiggy, IconTrendDown, IconWallet } from '@/components/Icons';
 import { ProfileChips } from '@/components/ProfileView';
-import { AdvancedList, AdvancePicker, AdvancePlan, RuleToggle, SavingPlan } from '@/components/RuleControls';
+import { AdvancedList, AdvanceMark, AdvancePicker, AdvancePlan, AdvancePool, RuleToggle, SavingPlan } from '@/components/RuleControls';
 import SavingsList from '@/components/SavingsList';
+import { PrepayList } from '@/components/Prepay';
 import TxRow from '@/components/TxRow';
 import { addMonths, dateLabel, isValidMonth, monthLabel } from '@/lib/dates';
 import MonthPicker from '@/components/MonthPicker';
-import { freeOfInstallmentsAfter, invoices, monthResult, goalsPlan, overdueBefore, profileSummary, ruleOfThree, summary } from '@/lib/finance';
+import { antecipacaoPara, antecipado, freeOfInstallmentsAfter, invoices, monthResult, goalsPlan, overdueBefore, profileSummary, ruleOfThree, summary } from '@/lib/finance';
 import { brl } from '@/lib/format';
 import { loadData } from '@/lib/data';
 
@@ -49,6 +50,8 @@ export default async function Inicio({ searchParams }: { searchParams: { m?: str
   const atrasadasAntes = isCur ? s.dividas : overdueBefore(d, vm);
   const pagarMes = isCur ? s.pagar : d.txs.filter((t) => t.kind === 'despesa' && !t.paid && t.month === vm);
   const faltaPagar = [...atrasadasAntes, ...pagarMes];
+  // o que já foi antecipado da fatura não precisa ser pago de novo
+  const valorFaltaPagar = sum(faltaPagar) - (isCur ? s.antecipadoAgora : antecipado(d, vm));
   const totalAtrasado = sum(atrasadasAntes);
   const faturasAbertas = isCur ? todas.filter((f) => f.month <= s.cur && f.open > 0) : todas.filter((f) => f.month === vm && f.open > 0);
   const valorFatura = isCur ? s.faturaNoPagar : sum(faturasAbertas.map((f) => ({ amount: f.open })));
@@ -66,6 +69,15 @@ export default async function Inicio({ searchParams }: { searchParams: { m?: str
     individual: (() => { const f = rule.individuais.find((x) => x.profile.id === p.id); return f ? { ...f, dividido: rule.dividido } : null; })(),
   }));
   const lancMes = d.allTxs.filter((t) => t.month === vm);
+  // Antecipação de contas: feita neste mês (para o próximo) e disponível neste mês (feita no anterior)
+  const advFeito = d.advances.filter((a) => a.date.slice(0, 7) === vm && a.month > vm).reduce((a, x) => a + x.amount, 0);
+  const pool = antecipacaoPara(d, vm);
+  const poolBills = d.allTxs.filter((t) => t.kind === 'despesa' && t.month === vm && t.payment !== 'cartao' && (!t.paid || !!t.antecipacao_id));
+  const faturaDoMes = todas.find((f) => f.month === vm);
+  // Já antecipado para este mês: contas pagas em meses anteriores + valores antecipados da fatura deste mês
+  const contasAntecipadas = d.txs.filter((t) => t.kind === 'despesa' && t.month === vm && t.paid && !!t.paid_at && t.paid_at.slice(0, 7) < vm);
+  const faturaAntecipada = d.prepayments.filter((p) => p.month === vm);
+  const totalAntecipado = contasAntecipadas.reduce((a, t) => a + t.amount, 0) + faturaAntecipada.reduce((a, p) => a + p.amount, 0);
   const maxGasto = Math.max(1, ...perfis.map((p) => p.s.gastos));
   const partes = rule.partes === 3 ? '÷ 3' : rule.partes === 2 ? '÷ 2' : 'tudo no valor individual';
   const doMes = isCur ? 'este mês' : `em ${monthLabel(vm)}`;
@@ -128,6 +140,8 @@ export default async function Inicio({ searchParams }: { searchParams: { m?: str
                   <Meter used={rule.adiantar.usado} total={rule.adiantar.cota} />
                   <span className="small muted">Adiantado {brl(rule.adiantar.usado)} · resta {brl(Math.max(0, rule.adiantar.resta))}</span>
                   <AdvancePlan key={`ap-${vm}-${rule.adiantar.plano ?? 'auto'}`} month={vm} cota={rule.adiantar.cota} plano={rule.adiantar.plano} />
+                  <AdvanceMark key={`am-${vm}-${advFeito}`} month={vm} proximo={addMonths(vm, 1)} value={rule.adiantar.plano ?? rule.adiantar.cota} feito={advFeito} />
+                  <PrepayList showMonth items={d.prepayments.filter((p) => p.date.slice(0, 7) === vm && p.month > vm)} />
                   <AdvancedList profiles={d.profiles} items={d.txs.filter((t) => t.kind === 'despesa' && t.paid && t.paid_at?.slice(0, 7) === vm && t.month > vm)} />
                   <AdvancePicker suggestions={rule.adiantar.sugestoes} all={rule.futuras} />
 
@@ -159,6 +173,14 @@ export default async function Inicio({ searchParams }: { searchParams: { m?: str
         </div>
       </Fold>
 
+      {pool.total > 0 && (
+        <Fold id="antecipacao" title="Antecipação de contas" defaultOpen
+          right={<span className="muted small">{brl(pool.usado)} de {brl(pool.total)}<InfoTip inline text={`Valor antecipado no mês anterior para as contas de ${monthLabel(vm)}. Marque as contas que ele pagou e informe quanto foi para o cartão. Elas saem do que falta pagar.`} /></span>}>
+          <AdvancePool key={`pool-${vm}-${pool.usado}-${pool.valorCartao}`} month={vm} total={pool.total} usado={pool.usado} resta={pool.resta}
+            valorCartao={pool.valorCartao} faturaTotal={faturaDoMes?.total ?? 0} bills={poolBills} profiles={d.profiles} />
+        </Fold>
+      )}
+
       <Fold id="resumo" title="Resumo do mês">
         <div className="grid grid-5 tiles">
           {isCur ? (
@@ -171,7 +193,7 @@ export default async function Inicio({ searchParams }: { searchParams: { m?: str
           <ListTile label="Falta receber" value={sum(receber)} color="var(--blue)" icon={<IconArrowUp />} hint={doMes}
             info="Receitas do mês que ainda não entraram na conta (status Prevista). Toque para ver a lista."
             title={`Falta receber ${doMes}`} items={receber} profiles={d.profiles} today={d.today} empty="Nada a receber." />
-          <ListTile label="Falta pagar" value={sum(faltaPagar)} color="var(--red)" icon={<IconArrowDown />}
+          <ListTile label="Falta pagar" value={valorFaltaPagar} color="var(--red)" icon={<IconArrowDown />}
             hint={<>{valorFatura > 0 ? `inclui ${brl(valorFatura)} do cartão` : doMes}{totalAtrasado > 0 && <span className="neg"> · {brl(totalAtrasado)} atrasado</span>}</>}
             info="Contas do mês que ainda não foram pagas, incluindo a fatura do cartão que vence no mês e contas atrasadas. Toque para ver a lista."
             title={`Falta pagar ${doMes}`} items={faltaPagar} profiles={d.profiles} today={d.today} empty="Nada a pagar. 🚀" />
@@ -187,6 +209,18 @@ export default async function Inicio({ searchParams }: { searchParams: { m?: str
         </div>
       </Fold>
 
+
+      {totalAntecipado > 0 && (
+        <Fold id="antecipado" title={`Já antecipado para ${isCur ? 'este mês' : monthLabel(vm)}`}
+          right={<span className="muted small">{brl(totalAntecipado)}<InfoTip inline text="Contas deste mês que foram pagas antes, em meses anteriores, e valores antecipados da fatura do cartão deste mês. Já não entram no que falta pagar." /></span>}>
+          <div className="stack" style={{ gap: 8 }}>
+            <PrepayList items={faturaAntecipada} />
+            {contasAntecipadas.length > 0 && (
+              <div className="list">{contasAntecipadas.map((t) => <TxRow key={t.id} t={t} profiles={d.profiles} today={d.today} />)}</div>
+            )}
+          </div>
+        </Fold>
+      )}
 
       {isCur && s.dividas.length > 0 && (
         <details className="alert">

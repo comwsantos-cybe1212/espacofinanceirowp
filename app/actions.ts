@@ -382,3 +382,93 @@ export async function deleteGoal(id: number) {
   await sql`delete from goals where id = ${id}`;
   refresh();
 }
+
+/* ----------------------------------------------------------- Antecipar fatura */
+
+/** Antecipa um valor da fatura de `month` (pago hoje) */
+export async function addPrepayment(month: string, value: string): Promise<ActionResult> {
+  await requireAuth();
+  if (!/^\d{4}-\d{2}$/.test(month)) return { ok: false, error: 'Fatura inválida.' };
+  const cents = parseBRL(value);
+  if (!Number.isFinite(cents) || cents <= 0) return { ok: false, error: 'Informe um valor válido.' };
+  const sql = await db();
+  await sql`insert into prepayments (month, amount, date, note) values (${month}, ${cents}, ${todayBR()}, 'Antecipação da fatura')`;
+  refresh();
+  return { ok: true };
+}
+
+export async function updatePrepayment(id: number, value: string): Promise<ActionResult> {
+  await requireAuth();
+  const cents = parseBRL(value);
+  if (!Number.isFinite(cents) || cents <= 0) return { ok: false, error: 'Informe um valor válido.' };
+  const sql = await db();
+  await sql`update prepayments set amount = ${cents}::int where id = ${id}`;
+  refresh();
+  return { ok: true };
+}
+
+export async function deletePrepayment(id: number) {
+  await requireAuth();
+  const sql = await db();
+  await sql`delete from prepayments where id = ${id}`;
+  refresh();
+}
+
+/* ----------------------------------------------------------- Antecipação de contas (para o mês seguinte) */
+
+const nextMonth = (m: string) => { const [y, mo] = m.split('-').map(Number); return mo === 12 ? `${y + 1}-01` : `${y}-${String(mo + 1).padStart(2, '0')}`; };
+
+/** Marca/desmarca que o valor de "adiantar contas" do mês foi antecipado (vale para as contas do mês seguinte) */
+export async function markAdvanced(month: string, on: boolean, value: string): Promise<ActionResult> {
+  await requireAuth();
+  if (!/^\d{4}-\d{2}$/.test(month)) return { ok: false, error: 'Mês inválido.' };
+  const sql = await db();
+  const alvo = nextMonth(month);
+  const existentes = await sql`select id from advances where month = ${alvo} and left(date, 7) = ${month}`;
+  const ids = existentes.map((r) => r.id as number);
+  if (on) {
+    const cents = parseBRL(value);
+    if (!Number.isFinite(cents) || cents <= 0) return { ok: false, error: 'Informe o valor antecipado.' };
+    const today = todayBR();
+    const date = month === monthOf(today) ? today : month < monthOf(today) ? `${month}-28` : `${month}-01`;
+    if (ids.length) await sql`update advances set amount = ${cents}::int where id = ${ids[0]}`;
+    else await sql`insert into advances (month, amount, date) values (${alvo}, ${cents}, ${date})`;
+    await sql`insert into settings (key, value) values (${`adi:${month}`}, ${String(cents)}) on conflict (key) do update set value = excluded.value`;
+  } else if (ids.length) {
+    // desfaz: contas voltam a ficar em aberto e o valor do cartão sai da fatura
+    await sql`update transactions set paid = false, paid_at = null, antecipacao_id = null where antecipacao_id in ${sql(ids)}`;
+    await sql`delete from prepayments where antecipacao_id in ${sql(ids)}`;
+    await sql`delete from advances where id in ${sql(ids)}`;
+  }
+  refresh();
+  return { ok: true };
+}
+
+/** No mês seguinte: marca/desmarca uma conta como paga com a antecipação */
+export async function allocateBill(month: string, txId: number, on: boolean): Promise<ActionResult> {
+  await requireAuth();
+  const sql = await db();
+  const [adv] = await sql`select id, date from advances where month = ${month} order by id limit 1`;
+  if (!adv) return { ok: false, error: 'Não há antecipação para este mês.' };
+  if (on) await sql`update transactions set paid = true, paid_at = ${adv.date}, antecipacao_id = ${adv.id} where id = ${txId}`;
+  else await sql`update transactions set paid = false, paid_at = null, antecipacao_id = null where id = ${txId} and antecipacao_id is not null`;
+  refresh();
+  return { ok: true };
+}
+
+/** No mês seguinte: quanto da antecipação foi para a fatura do cartão desse mês */
+export async function setPoolCard(month: string, value: string): Promise<ActionResult> {
+  await requireAuth();
+  const sql = await db();
+  const advs = await sql`select id, date from advances where month = ${month} order by id`;
+  if (!advs.length) return { ok: false, error: 'Não há antecipação para este mês.' };
+  const ids = advs.map((r) => r.id as number);
+  await sql`delete from prepayments where antecipacao_id in ${sql(ids)}`;
+  if (value.trim()) {
+    const cents = parseBRL(value);
+    if (!Number.isFinite(cents) || cents < 0) return { ok: false, error: 'Informe um valor válido.' };
+    if (cents > 0) await sql`insert into prepayments (month, amount, date, note, antecipacao_id) values (${month}, ${cents}, ${advs[0].date}, 'Antecipação de contas', ${ids[0]})`;
+  }
+  refresh();
+  return { ok: true };
+}

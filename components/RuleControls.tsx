@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { markSaved, moveSavings, payNow, setAdvancePlan, setRuleFlag, setSavingPlan, togglePaid } from '@/app/actions';
+import { allocateBill, markAdvanced, markSaved, moveSavings, payNow, setAdvancePlan, setPoolCard, setRuleFlag, setSavingPlan, togglePaid } from '@/app/actions';
 import { EditTransaction } from './TransactionForm';
 import { monthLabel } from '@/lib/dates';
 import { brl, parseBRL } from '@/lib/format';
@@ -174,5 +174,80 @@ export function AdvancePlan({ month, cota, plano }: { month: string; cota: numbe
       )}
       {msg && <span className={msg.endsWith('✓') ? 'pos small' : 'error'}>{msg}</span>}
     </label>
+  );
+}
+
+/** ☑ Antecipado: o valor de adiantar contas deste mês foi pago e vale para as contas do mês seguinte */
+export function AdvanceMark({ month, value, feito, proximo }: { month: string; value: number; feito: number; proximo: string }) {
+  const [checked, setChecked] = useState(feito > 0);
+  const [msg, setMsg] = useState('');
+  const [pending, start] = useTransition();
+  return (
+    <div className="stack" style={{ gap: 4 }}>
+      <label className="check rule-toggle">
+        <input type="checkbox" checked={checked} disabled={pending}
+          onChange={(e) => {
+            const v = e.target.checked;
+            const txt = v
+              ? `Confirmar que ${brl(value)} foi antecipado?\nSai do saldo agora e fica disponível para as contas de ${monthLabel(proximo)}.`
+              : `Desmarcar a antecipação de ${brl(feito)}? As contas de ${monthLabel(proximo)} marcadas com ela voltam a ficar em aberto.`;
+            if (!window.confirm(txt)) return;
+            setChecked(v);
+            start(async () => { const r = await markAdvanced(month, v, (value / 100).toFixed(2).replace('.', ',')); if (!r.ok) { setChecked(!v); setMsg(r.error ?? 'Erro'); } else setMsg(''); });
+          }} />
+        Antecipado {feito > 0 ? <span className="pos">· {brl(feito)} para {monthLabel(proximo)}</span> : <span className="faint">(para {monthLabel(proximo)})</span>}
+      </label>
+      {msg && <span className="error">{msg}</span>}
+    </div>
+  );
+}
+
+/** No mês seguinte: distribuir a antecipação entre as contas e a fatura do cartão */
+export function AdvancePool({ month, total, usado, resta, valorCartao, faturaTotal, bills, profiles }: {
+  month: string; total: number; usado: number; resta: number; valorCartao: number; faturaTotal: number; bills: Tx[]; profiles: Profile[];
+}) {
+  const [card, setCard] = useState(valorCartao ? (valorCartao / 100).toFixed(2).replace('.', ',') : '');
+  const [marcadas, setMarcadas] = useState<Set<number>>(new Set(bills.filter((t) => t.antecipacao_id).map((t) => t.id)));
+  const [msg, setMsg] = useState('');
+  const [pending, start] = useTransition();
+  return (
+    <div className="stack" style={{ gap: 12 }}>
+      <div className="split-note">
+        Antecipado <strong>{brl(total)}</strong> · usado <strong>{brl(usado)}</strong> · {resta >= 0 ? <>resta <strong className="pos">{brl(resta)}</strong></> : <strong className="neg">passou {brl(-resta)}</strong>}
+      </div>
+      <div className="stack" style={{ gap: 4 }}>
+        <span className="small" style={{ fontWeight: 700 }}>Contas pagas com a antecipação</span>
+        {bills.length === 0 ? <span className="faint small">Nenhuma conta fora do cartão neste mês.</span> : (
+          <div className="list">
+            {bills.map((t) => (
+              <label key={t.id} className="row" style={{ cursor: 'pointer', padding: '7px 0' }}>
+                <input type="checkbox" className="round-check" checked={marcadas.has(t.id)} disabled={pending}
+                  onChange={(e) => {
+                    const v = e.target.checked;
+                    const muda = (on: boolean) => setMarcadas((m) => { const n = new Set(m); on ? n.add(t.id) : n.delete(t.id); return n; });
+                    muda(v);
+                    start(async () => { const r = await allocateBill(month, t.id, v); if (!r.ok) { muda(!v); setMsg(r.error ?? 'Erro'); } else setMsg(''); });
+                  }} />
+                <span className="row-main">
+                  <span className="row-title small" style={{ display: 'block' }}>{t.description}</span>
+                  <span className="row-meta">{profiles.find((p) => p.id === t.profile_id)?.name ?? 'Nós'} · vence {t.due_date.slice(8, 10)}/{t.due_date.slice(5, 7)}</span>
+                </span>
+                <span className="row-amount small">{brl(t.amount)}</span>
+              </label>
+            ))}
+          </div>
+        )}
+      </div>
+      <div className="field" style={{ gap: 4 }}>
+        <span>Valor que foi para o cartão (fatura de {monthLabel(month)}{faturaTotal > 0 ? ` · total ${brl(faturaTotal)}` : ''})</span>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <input className="input" value={card} onChange={(e) => setCard(e.target.value)} inputMode="decimal" placeholder="0,00" aria-label="Valor para o cartão" style={{ padding: '7px 10px' }} />
+          <button type="button" className="btn btn-sm" disabled={pending}
+            onClick={() => start(async () => { const r = await setPoolCard(month, card); setMsg(r.ok ? 'Valor do cartão salvo ✓' : r.error ?? 'Erro'); })}>Definir</button>
+          {faturaTotal > 0 && <button type="button" className="btn btn-sm btn-ghost" onClick={() => setCard((faturaTotal / 100).toFixed(2).replace('.', ','))}>Total da fatura</button>}
+        </div>
+      </div>
+      {msg && <span className={msg.endsWith('✓') ? 'pos small' : 'error'}>{msg}</span>}
+    </div>
   );
 }

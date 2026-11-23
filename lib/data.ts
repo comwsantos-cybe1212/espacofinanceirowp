@@ -1,7 +1,7 @@
 import 'server-only';
 import { db } from './db';
 import { monthOf, todayBR } from './dates';
-import type { AppData, Goal, Profile, SavingMove, Tx } from './types';
+import type { Advance, AppData, Goal, Prepayment, Profile, SavingMove, Tx } from './types';
 import { ruleOfThree } from './finance';
 
 export async function loadData(): Promise<AppData> {
@@ -24,13 +24,15 @@ export async function loadData(): Promise<AppData> {
 
 async function readData(): Promise<AppData> {
   const sql = await db();
-  const [profiles, txs, savings, settings, goals] = await Promise.all([
+  const [profiles, txs, savings, settings, goals, prepayments, advances] = await Promise.all([
     sql<Profile[]>`select id, name, color, photo from profiles order by id`,
-    sql<Tx[]>`select id, profile_id, kind, subtype, category, description, amount, due_date, month, recurrence, payment, method, fatura_total, pessoal,
+    sql<Tx[]>`select id, profile_id, kind, subtype, category, description, amount, due_date, month, recurrence, payment, method, fatura_total, pessoal, antecipacao_id,
                group_id, inst_no, inst_total, purchase_date, paid, paid_at from transactions order by due_date, id`,
     sql<SavingMove[]>`select id, date, amount, note from savings order by date desc, id desc`,
     sql<{ key: string; value: string }[]>`select key, value from settings`,
     sql<Goal[]>`select id, name, target, deadline, done, done_at, photo from goals order by done, deadline, id`,
+    sql<Prepayment[]>`select id, month, amount, date, note, antecipacao_id from prepayments order by date, id`,
+    sql<Advance[]>`select id, month, amount, date from advances order by date, id`,
   ]);
   const opening = Number(settings.find((s) => s.key === 'saldo_inicial')?.value ?? 0);
   const today = todayBR();
@@ -39,6 +41,8 @@ async function readData(): Promise<AppData> {
   return {
     profiles: [...profiles],
     goals: [...goals],
+    prepayments: [...prepayments],
+    advances: [...advances],
     // Meses em que foi lançado o total da fatura: as compras do cartão desse mês já estão dentro dele
     ...(() => {
       // Uma compra só está "no total da fatura" se foi lançada ANTES do total daquele mês

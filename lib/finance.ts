@@ -2,7 +2,7 @@ import { addMonths, invoiceDue, invoiceMonth, monthOf } from './dates';
 import { INDIVIDUAL_CATEGORY } from './categories';
 import { NOS, type AppData, type Profile, type Tx } from './types';
 
-const sum = (list: Tx[]) => list.reduce((s, t) => s + t.amount, 0);
+const sum = (list: { amount: number }[]) => list.reduce((s, t) => s + t.amount, 0);
 
 export type TxStatus = 'pago' | 'pendente' | 'atrasado';
 export function txStatus(t: Tx, today: string): TxStatus {
@@ -12,6 +12,19 @@ export function txStatus(t: Tx, today: string): TxStatus {
 
 /* ---------------------------------------------------------------- Resumo */
 
+/* ---------------------------------------------------------------- Antecipação de fatura */
+
+/** Parte do cartão de um mês que ainda não foi paga (antes de descontar antecipações) */
+function cartaoEmAberto(d: AppData, month: string) {
+  return sum(d.txs.filter((t) => t.kind === 'despesa' && t.payment === 'cartao' && t.month === month && !t.paid));
+}
+
+/** Quanto já foi antecipado para a fatura de um mês e ainda vale (a fatura não foi quitada) */
+export function antecipado(d: AppData, month: string) {
+  const total = sum((d.prepayments ?? []).filter((p) => p.month === month));
+  return Math.min(total, cartaoEmAberto(d, month));
+}
+
 export function summary(d: AppData) {
   const { txs, today } = d;
   const cur = monthOf(today);
@@ -19,8 +32,13 @@ export function summary(d: AppData) {
 
   const paidIn = sum(txs.filter((t) => t.paid && t.kind === 'receita'));
   const paidOut = sum(txs.filter((t) => t.paid && t.kind === 'despesa'));
+  // Antecipações de faturas ainda não quitadas já saíram da conta (quando a fatura é paga, entram no valor dela)
+  const mesesAntecipados = [...new Set((d.prepayments ?? []).map((p) => p.month))];
+  const antecipacoes = mesesAntecipados.reduce((a, m) => a + (cartaoEmAberto(d, m) > 0 ? sum((d.prepayments ?? []).filter((p) => p.month === m)) : 0), 0);
+  // Antecipação de contas: o valor saiu da conta; a parte já distribuída está nas contas/fatura que ela pagou
+  const poolAberto = sum(d.advances ?? []) - sum((d.allTxs ?? d.txs).filter((t) => t.antecipacao_id)) - sum((d.prepayments ?? []).filter((p) => p.antecipacao_id));
   // Dinheiro guardado sai do saldo e vai para o cofre "Economia"
-  const saldoAtual = d.openingBalance + paidIn - paidOut - savingsTotal;
+  const saldoAtual = d.openingBalance + paidIn - paidOut - savingsTotal - antecipacoes - poolAberto;
 
   const openMonth = invoiceMonth(today); // fatura do cartão que está recebendo compras agora
   const receber = txs.filter((t) => !t.paid && t.kind === 'receita' && t.month <= cur);
@@ -28,14 +46,18 @@ export function summary(d: AppData) {
   // A pagar: contas do mês, incluindo a fatura do cartão que VENCE neste mês (dia 23).
   // A fatura aberta (compras depois do dia 17) só entra no mês em que vence.
   const pagar = txs.filter((t) => !t.paid && t.kind === 'despesa' && t.due_date >= today && t.month <= cur);
-  const faturaNoPagar = sum(pagar.filter((t) => t.payment === 'cartao')) + sum(dividas.filter((t) => t.payment === 'cartao'));
+  // O que já foi antecipado das faturas até este mês não precisa ser pago de novo
+  const mesesCartao = [...new Set([...pagar, ...dividas].filter((t) => t.payment === 'cartao').map((t) => t.month))];
+  const antecipadoAgora = mesesCartao.reduce((a, m) => a + antecipado(d, m), 0);
+  const antecipadoPagar = mesesCartao.filter((m) => invoiceDue(m) >= today).reduce((a, m) => a + antecipado(d, m), 0);
+  const faturaNoPagar = sum(pagar.filter((t) => t.payment === 'cartao')) + sum(dividas.filter((t) => t.payment === 'cartao')) - antecipadoAgora;
 
   const aReceber = sum(receber);
-  const aPagar = sum(pagar);
-  const totalDividas = sum(dividas);
+  const aPagar = sum(pagar) - antecipadoPagar;
+  const totalDividas = sum(dividas) - (antecipadoAgora - antecipadoPagar);
   const saldoPrevisto = saldoAtual + aReceber - aPagar - totalDividas;
 
-  return { cur, openMonth, saldoAtual, aReceber, aPagar, totalDividas, dividas, saldoPrevisto, savingsTotal, receber, pagar, faturaNoPagar };
+  return { cur, openMonth, saldoAtual, aReceber, aPagar, totalDividas, dividas, saldoPrevisto, savingsTotal, receber, pagar, faturaNoPagar, antecipadoAgora };
 }
 
 /* ---------------------------------------------------------------- Cartão */
@@ -47,6 +69,7 @@ export type Invoice = {
   total: number;
   open: number; // ainda não pago
   status: 'paga' | 'vencida' | 'fechada' | 'aberta' | 'futura';
+  antecipado: number;
 };
 
 export function openInvoiceMonth(today: string) {
@@ -66,14 +89,15 @@ export function invoices(d: AppData): Invoice[] {
     .map(([month, items]) => {
       const counted = items.filter((t) => !t.covered);
       const total = sum(counted);
-      const open = sum(counted.filter((t) => !t.paid));
+      const pre = antecipado(d, month);
+      const open = sum(counted.filter((t) => !t.paid)) - pre;
       const due = invoiceDue(month);
       let status: Invoice['status'];
       if (items.length > 0 && open === 0) status = 'paga';
       else if (month < openMonth) status = due < d.today ? 'vencida' : 'fechada';
       else if (month === openMonth) status = 'aberta';
       else status = 'futura';
-      return { month, due, items, total, open, status };
+      return { month, due, items, total, open, status, antecipado: pre };
     });
 }
 
@@ -169,8 +193,9 @@ export function monthResult(d: AppData, month: string): ProjectionRow {
   const receitas = sum(doMes.filter((t) => t.kind === 'receita'));
   const atrasadas = overdueBefore(d, month);
   const out = [...doMes.filter((t) => t.kind === 'despesa' && !(t.paid && t.paid_at && monthOf(t.paid_at) < month)), ...atrasadas];
-  const despesas = sum(out);
-  const cartao = sum(out.filter((t) => t.payment === 'cartao'));
+  const pre = antecipado(d, month);
+  const despesas = sum(out) - pre;
+  const cartao = sum(out.filter((t) => t.payment === 'cartao')) - pre;
   const individual = sum(out.filter((t) => isPessoal(t) && effMonth(t) === month));
   const resultado = receitas - despesas;
   const base = Math.max(0, resultado + individual);
@@ -270,7 +295,8 @@ export function ruleOfThree(d: AppData, month?: string): RuleOfThree {
   const anteriores = d.profiles.map((p) => ({ p, anterior: 0 }));
   const reservado = 0; // a base é só o mês; sobras individuais anteriores não precisam ser descontadas
   // O que a própria divisão já usou neste mês volta para a base (senão seria descontado duas vezes)
-  const adiantadoMes = d.txs.filter((t) => t.kind === 'despesa' && t.paid && t.paid_at && monthOf(t.paid_at) === cur && t.month > cur);
+  // (contas pagas com a antecipação de contas já contam no valor antecipado, não de novo aqui)
+  const adiantadoMes = d.txs.filter((t) => t.kind === 'despesa' && t.paid && t.paid_at && monthOf(t.paid_at) === cur && t.month > cur && !t.antecipacao_id);
   const guardadoMes = d.savings.filter((m) => monthOf(m.date) === cur).reduce((a, m) => a + m.amount, 0);
   // gastos individuais descontados da pessoa NESTE mês e que também pesam nas contas deste mês
   // (compras individuais no cartão feitas depois do dia 17 só pesam no mês da fatura, e aí já saíram da sobra individual)
@@ -289,7 +315,9 @@ export function ruleOfThree(d: AppData, month?: string): RuleOfThree {
   const partes = partesDoMes(d, cur);
   const terco = base > 0 ? Math.floor(base / partes) : 0;
   const n = Math.max(d.profiles.length, 1);
-  const usadoAdiantar = sum(adiantadoMes);
+  const antecipacoesMes = (d.prepayments ?? []).filter((p) => p.date.slice(0, 7) === cur && p.month > cur && !p.antecipacao_id);
+  const antecipacaoContas = (d.advances ?? []).filter((a) => a.date.slice(0, 7) === cur);
+  const usadoAdiantar = sum(adiantadoMes) + sum(antecipacoesMes) + sum(antecipacaoContas);
   // Se guardar ou adiantar usar MAIS que a sua parte, o excedente sai das outras partes
   type Parte = 'I' | 'A' | 'G';
   const ativas: Parte[] = ['I', ...(semAdiantar ? [] : ['A' as Parte]), ...(semGuardar ? [] : ['G' as Parte])];
@@ -475,4 +503,17 @@ export function profileSummary(d: AppData, profile: Profile, month: string): Pro
       .map(([category, items]) => ({ category, amount: items.reduce((a, i) => a + i.amount, 0), items: items.sort((a, b) => b.amount - a.amount) }))
       .sort((a, b) => b.amount - a.amount),
   };
+}
+
+/* ---------------------------------------------------------------- Antecipação de contas (de um mês para o seguinte) */
+
+/** Antecipação disponível para as contas de `month`: total, usado (contas marcadas + valor do cartão) e o que resta */
+export function antecipacaoPara(d: AppData, month: string) {
+  const advs = (d.advances ?? []).filter((a) => a.month === month);
+  const ids = new Set(advs.map((a) => a.id));
+  const contas = (d.allTxs ?? d.txs).filter((t) => t.antecipacao_id && ids.has(t.antecipacao_id));
+  const cartao = (d.prepayments ?? []).filter((p) => p.antecipacao_id && ids.has(p.antecipacao_id));
+  const total = sum(advs);
+  const usado = sum(contas) + sum(cartao);
+  return { advances: advs, total, contas, cartao, valorCartao: sum(cartao), usado, resta: total - usado };
 }

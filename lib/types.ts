@@ -20,6 +20,8 @@ export type Tx = {
   fatura_total: boolean;
   /** Gasto pessoal: sai do valor individual de quem gastou (de "Nós", metade de cada) */
   pessoal: boolean;
+  /** Paga com a antecipação de contas do mês anterior */
+  antecipacao_id: number | null;
   /** Compra no cartão que já está dentro de um "total da fatura" lançado no mesmo mês (aparece, mas não soma) */
   covered?: boolean;
   group_id: string | null;
@@ -32,11 +34,19 @@ export type Tx = {
 
 export type SavingMove = { id: number; date: string; amount: number; note: string | null };
 
+/** Valor antecipado de uma fatura: `month` é a fatura, `date` o dia em que foi pago */
+export type Prepayment = { id: number; month: string; amount: number; date: string; note: string | null; antecipacao_id: number | null };
+
+/** Antecipação de contas: pago em `date` para cobrir contas do mês `month` */
+export type Advance = { id: number; month: string; amount: number; date: string };
+
 export type Goal = { id: number; name: string; target: number; deadline: string; done: boolean; done_at: string | null; photo: string | null };
 
 export type AppData = {
   profiles: Profile[];
   goals: Goal[];
+  prepayments: Prepayment[];
+  advances: Advance[];
   /** Todos os lançamentos, inclusive os já incluídos num total de fatura (para listas) */
   allTxs: Tx[];
   txs: Tx[];

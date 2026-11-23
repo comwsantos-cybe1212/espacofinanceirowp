@@ -4,6 +4,7 @@ import Avatar from '@/components/Avatar';
 import InfoTip from '@/components/InfoTip';
 import { IconCard, IconChevronDown, IconRepeat } from '@/components/Icons';
 import TxRow from '@/components/TxRow';
+import { PrepayForm, PrepayList } from '@/components/Prepay';
 import { addMonths, CARD_CLOSE_DAY, CARD_DUE_DAY, dateLabel, monthLabel } from '@/lib/dates';
 import { freeOfInstallmentsAfter, installmentPlans, invoices, openInvoiceMonth } from '@/lib/finance';
 import { brl } from '@/lib/format';
@@ -59,7 +60,7 @@ export default async function Cartao() {
                 </div>
                 <div className="invoice-nums">
                   <div><small>Total</small><b>{brl(inv.total)}</b></div>
-                  <div><small>Pago</small><b>{brl(pago)}</b></div>
+                  <div><small>Pago{inv.antecipado > 0 ? ' (c/ antecipado)' : ''}</small><b>{brl(pago)}</b></div>
                   <div><small>Restante</small><b>{brl(inv.open)}</b></div>
                   <span className={`invoice-pill ${st.cls}`}>{st.label}</span>
                   {inv.open > 0 && inv.month <= openMonth && (
@@ -71,6 +72,13 @@ export default async function Cartao() {
                 </div>
               </summary>
               <div className="invoice-body">
+                {inv.open > 0 && (
+                  <div className="stack" style={{ gap: 6, padding: '8px 0 10px', borderBottom: '1px solid var(--border)' }}>
+                    <span className="small" style={{ fontWeight: 700 }}>Antecipar parte desta fatura</span>
+                    <PrepayForm month={inv.month} max={inv.open} />
+                  </div>
+                )}
+                <PrepayList items={d.prepayments.filter((p) => p.month === inv.month)} />
                 <div className="list">
                   {inv.items.length ? inv.items.map((t) => <TxRow key={t.id} t={t} profiles={d.profiles} today={d.today} />) : <div className="empty">Fatura vazia.</div>}
                 </div>

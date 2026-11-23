@@ -48,6 +48,15 @@ async function migrate(sql: postgres.Sql) {
     done boolean not null default false, done_at text, created_at timestamptz not null default now())`;
   await sql`alter table goals add column if not exists photo text`;
   await sql`create table if not exists settings (key text primary key, value text not null)`;
+  // Antecipação de contas: valor pago num mês (date) para cobrir contas do mês seguinte (month)
+  await sql`create table if not exists advances (
+    id serial primary key, month text not null, amount int not null, date text not null, created_at timestamptz not null default now())`;
+  await sql`alter table transactions add column if not exists antecipacao_id int`;
+  // Valores antecipados de uma fatura do cartão (month = fatura; date = dia em que foi pago)
+  await sql`create table if not exists prepayments (
+    id serial primary key, month text not null, amount int not null, date text not null, note text,
+    created_at timestamptz not null default now())`;
+  await sql`alter table prepayments add column if not exists antecipacao_id int`;
   await sql`create table if not exists login_attempts (ip text primary key, fails int not null, last_at timestamptz not null)`;
   // Correção única: lançamentos chamados "cartão de crédito" são o total de uma fatura.
   // Viram crédito, na fatura do mês da data informada (vence dia 23), e aparecem no Cartão.
