@@ -99,7 +99,7 @@ export default async function Inicio({ searchParams }: { searchParams: { m?: str
           {(
           <div className="grid grid-3">
             <div className="third">
-              <div className="third-head"><span>🙋 Valores individuais<InfoTip inline align="left" text={`${brl(rule.valorIndividual)} ÷ 2 = ${brl(porPessoa)} para cada um gastar sem consultar o outro. Despesas marcadas como Pessoal saem do valor de quem gastou. O que não for gasto continua no valor atual no mês seguinte.`} /></span><span className="third-value">{brl(rule.valorIndividual)}</span></div>
+              <div className="third-head"><span>🙋 Valores individuais<InfoTip inline align="left" text={`${brl(rule.valorIndividual)} ÷ 2 = ${brl(porPessoa)} para cada um gastar sem consultar o outro. Despesas marcadas como Pessoal saem do valor de quem gastou. Vale só para este mês: não acumula para o mês seguinte.`} /></span><span className="third-value">{brl(rule.valorIndividual)}</span></div>
               {rule.individuais.map((x) => (
                 <div key={x.profile.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <Avatar profile={x.profile} size={26} />

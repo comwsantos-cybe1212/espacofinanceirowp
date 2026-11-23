@@ -31,7 +31,7 @@ export function ProfileView({ s, individual }: { s: ProfileSummary; individual?:
       </div>
       {individual && (
         <div className="third" style={{ background: 'var(--accent-soft)' }}>
-          <div className="third-head"><span>🙋 Valor individual atual<InfoTip inline align="left" text="Pode gastar sem consultar o outro. O que não gastar continua aqui no mês seguinte." /></span> <span className={`third-value ${individual.atual < 0 ? 'neg' : ''}`}>{brl(individual.atual)}</span></div>
+          <div className="third-head"><span>🙋 Valor individual do mês<InfoTip inline align="left" text="Pode gastar sem consultar o outro. Vale só para este mês: não acumula para o mês seguinte." /></span> <span className={`third-value ${individual.atual < 0 ? 'neg' : ''}`}>{brl(individual.atual)}</span></div>
           <span className="small muted">
             {individual.dividido
               ? <>Este mês foi adicionado <strong className="pos">{brl(individual.cotaMes)}</strong>.</>

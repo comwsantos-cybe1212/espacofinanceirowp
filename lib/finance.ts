@@ -265,7 +265,9 @@ export function ruleOfThree(d: AppData, month?: string): RuleOfThree {
   const cur = month ?? s.cur;
   const prev = addMonths(cur, -1);
 
-  const anteriores = d.profiles.map((p) => ({ p, anterior: individualBalance(d, p.id, prev) }));
+  // O valor individual vale só para o mês: nada passa do mês anterior (vocês sempre gastam o pessoal no mês)
+  void prev;
+  const anteriores = d.profiles.map((p) => ({ p, anterior: 0 }));
   const reservado = 0; // a base é só o mês; sobras individuais anteriores não precisam ser descontadas
   // O que a própria divisão já usou neste mês volta para a base (senão seria descontado duas vezes)
   const adiantadoMes = d.txs.filter((t) => t.kind === 'despesa' && t.paid && t.paid_at && monthOf(t.paid_at) === cur && t.month > cur);
