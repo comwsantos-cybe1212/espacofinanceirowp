@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { markSaved, moveSavings, payNow, setRuleFlag, setSavingPlan, togglePaid } from '@/app/actions';
+import { markSaved, moveSavings, payNow, setAdvancePlan, setRuleFlag, setSavingPlan, togglePaid } from '@/app/actions';
 import { EditTransaction } from './TransactionForm';
 import { monthLabel } from '@/lib/dates';
 import { brl, parseBRL } from '@/lib/format';
@@ -152,5 +152,27 @@ export function AdvancedList({ items, profiles }: { items: Tx[]; profiles: Profi
         ))}
       </div>
     </div>
+  );
+}
+
+/** Valor usado para adiantar contas no mês (definido por vocês; vazio = ⅓ automático) */
+export function AdvancePlan({ month, cota, plano }: { month: string; cota: number; plano: number | null }) {
+  const [value, setValue] = useState(((plano ?? cota) / 100).toFixed(2).replace('.', ','));
+  const [msg, setMsg] = useState('');
+  const [pending, start] = useTransition();
+  return (
+    <label className="field" style={{ gap: 4 }}>
+      <span>Valor para adiantar contas {plano === null && <span className="faint">(automático: ⅓)</span>}</span>
+      <div style={{ display: 'flex', gap: 6 }}>
+        <input className="input" value={value} onChange={(e) => setValue(e.target.value)} inputMode="decimal" style={{ padding: '7px 10px' }} aria-label="Valor para adiantar contas" />
+        <button type="button" className="btn btn-sm" disabled={pending}
+          onClick={() => start(async () => { const r = await setAdvancePlan(month, value); setMsg(r.ok ? 'Valor definido ✓' : r.error ?? 'Erro'); })}>Definir</button>
+      </div>
+      {plano !== null && (
+        <button type="button" className="btn btn-sm btn-ghost link-btn" disabled={pending}
+          onClick={() => start(async () => { await setAdvancePlan(month, ''); setMsg(''); })}>Voltar ao automático (⅓)</button>
+      )}
+      {msg && <span className={msg.endsWith('✓') ? 'pos small' : 'error'}>{msg}</span>}
+    </label>
   );
 }

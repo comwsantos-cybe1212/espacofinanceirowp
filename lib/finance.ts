@@ -207,7 +207,7 @@ export type RuleOfThree = {
   semAdiantar: boolean;
   futuras: Tx[]; // todas as contas futuras que podem ser adiantadas
   individuais: Individual[];
-  adiantar: { cota: number; usado: number; resta: number; sugestoes: Tx[] };
+  adiantar: { cota: number; usado: number; resta: number; sugestoes: Tx[]; plano: number | null };
   guardar: { cota: number; usado: number; resta: number; plano: number | null };
 };
 
@@ -296,8 +296,11 @@ export function ruleOfThree(d: AppData, month?: string): RuleOfThree {
   // Economia estipulada para o mês (se houver) vira a parte Guardar; o que já foi guardado vale se for maior
   const planoRaw = d.settings[`eco:${cur}`];
   const plano = planoRaw !== undefined ? Math.max(0, Number(planoRaw) || 0) : null;
-  const uso: Record<Parte, number> = { I: 0, A: usadoAdiantar, G: Math.max(0, guardadoMes, plano ?? 0) };
-  const estouradas = ativas.filter((x) => x !== 'I' && (uso[x] > terco || (x === 'G' && plano !== null)));
+  // Valor definido por vocês para adiantar contas (se houver) vira a parte Adiantar
+  const planoAdiRaw = d.settings[`adi:${cur}`];
+  const planoAdi = planoAdiRaw !== undefined ? Math.max(0, Number(planoAdiRaw) || 0) : null;
+  const uso: Record<Parte, number> = { I: 0, A: Math.max(usadoAdiantar, planoAdi ?? 0), G: Math.max(0, guardadoMes, plano ?? 0) };
+  const estouradas = ativas.filter((x) => x !== 'I' && (uso[x] > terco || (x === 'G' && plano !== null) || (x === 'A' && planoAdi !== null)));
   const valor: Record<Parte, number> = { I: 0, A: 0, G: 0 };
   if (estouradas.length) {
     const restante = Math.max(0, base - estouradas.reduce((a, x) => a + uso[x], 0));
@@ -334,7 +337,7 @@ export function ruleOfThree(d: AppData, month?: string): RuleOfThree {
     dividido, saldoAtual: s.saldoAtual, saldoPrevisto: s.saldoPrevisto, reservado, basePrevia, base, terco, partes, semGuardar, semAdiantar, valorIndividual,
     futuras: [...futuras].sort((a, b) => a.due_date.localeCompare(b.due_date) || a.description.localeCompare(b.description)),
     individuais,
-    adiantar: { cota: cotaAdiantar, usado: usadoAdiantar, resta: restaAdiantar, sugestoes },
+    adiantar: { cota: cotaAdiantar, usado: usadoAdiantar, resta: restaAdiantar, sugestoes, plano: planoAdi },
     guardar: { cota: cotaGuardar, usado: guardadoMes, resta: cotaGuardar - guardadoMes, plano },
   };
 }

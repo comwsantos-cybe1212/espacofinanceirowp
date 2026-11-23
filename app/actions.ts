@@ -192,20 +192,30 @@ export async function setRuleFlag(flag: 'sem_guardar' | 'sem_adiantar', on: bool
   refresh();
 }
 
-/** Estipula quanto economizar no mês (vazio = volta ao ⅓ automático) */
-export async function setSavingPlan(month: string, value: string): Promise<ActionResult> {
+/** Define o valor de uma parte da divisão no mês: economia (eco) ou adiantar contas (adi). Vazio = volta ao ⅓ automático */
+async function setPartPlan(prefix: 'eco' | 'adi', month: string, value: string): Promise<ActionResult> {
   await requireAuth();
   if (!/^\d{4}-\d{2}$/.test(month)) return { ok: false, error: 'Mês inválido.' };
   const sql = await db();
   if (!value.trim()) {
-    await sql`delete from settings where key = ${`eco:${month}`}`;
+    await sql`delete from settings where key = ${`${prefix}:${month}`}`;
   } else {
     const cents = parseBRL(value);
     if (!Number.isFinite(cents) || cents < 0) return { ok: false, error: 'Informe um valor válido.' };
-    await sql`insert into settings (key, value) values (${`eco:${month}`}, ${String(cents)}) on conflict (key) do update set value = excluded.value`;
+    await sql`insert into settings (key, value) values (${`${prefix}:${month}`}, ${String(cents)}) on conflict (key) do update set value = excluded.value`;
   }
   refresh();
   return { ok: true };
+}
+
+/** Estipula quanto economizar no mês */
+export async function setSavingPlan(month: string, value: string): Promise<ActionResult> {
+  return setPartPlan('eco', month, value);
+}
+
+/** Define quanto usar para adiantar contas no mês */
+export async function setAdvancePlan(month: string, value: string): Promise<ActionResult> {
+  return setPartPlan('adi', month, value);
 }
 
 /** Marca se a economia do mês foi feita: guarda o valor na caixinha, ou desfaz o que foi guardado no mês */
